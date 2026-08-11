@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "description": "Annotated starter config. Copy to layers.json and edit. Every action kind the engine understands appears at least once below.",
+  "tapHoldMs": 200,
+
+  "appGroups": {
+    "solidworks": ["SLDWORKS.exe"],
+    "excel": ["EXCEL.EXE"],
+    "browsers": ["chrome.exe", "msedge.exe", "firefox.exe"]
+  },
+
+  "bindings": {
+    "F13": {
+      "note": "send: a plain chord. Modifier names are Ctrl / Alt / Shift / Win, joined with +.",
+      "tap": { "send": "Ctrl+Z" },
+      "hold": {
+        "note": "byApp: pick a branch from the foreground exe. A 'default' branch is required.",
+        "byApp": {
+          "solidworks": { "send": "Ctrl+Y" },
+          "excel": { "send": "Ctrl+Y" },
+          "default": { "send": "Ctrl+Shift+Z" }
+        }
+      }
+    },
+
+    "F14": {
+      "note": "focusApp: activate a window of exe, otherwise run launch. Leave launch empty for focus-only (never starts the app).",
+      "tap": {
+        "focusApp": {
+          "exe": "chrome.exe",
+          "launch": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        }
+      },
+      "hold": {
+        "focusApp": {
+          "exe": "notepad.exe",
+          "launch": "",
+          "note": "launch is empty, so this focuses Notepad if it is already open and does nothing if it is not."
+        }
+      }
+    },
+
+    "F15": {
+      "note": "builtin: altTabTap flips to the last window. altTabBrowse holds the switcher open while the key is held.",
+      "tap": { "builtin": "altTabTap" },
+      "hold": { "builtin": "altTabBrowse" }
+    },
+
+    "F16": {
+      "note": "windowClass narrows which window counts. Needed for explorer.exe, which is also the desktop and the taskbar.",
+      "tap": {
+        "focusApp": {
+          "exe": "explorer.exe",
+          "windowClass": "CabinetWClass",
+          "launch": "C:\\Windows\\explorer.exe"
+        }
+      }
+    },
+
+    "F17": {
+      "note": "A binding with no hold is tap-only and fires the instant the key goes down.",
+      "tap": { "send": "Ctrl+S" }
+    },
+
+    "F19": {
+      "note": "layerToggle: flip a sticky layer on or off.",
+      "tap": { "layerToggle": "num" }
+    },
+
+    "F20": {
+      "note": "swallow: eat the key and emit nothing. Use it so a raw F-key can never leak to an app.",
+      "tap": { "send": "Ctrl+V" },
+      "hold": { "swallow": true }
+    }
+  },
+
+  "layers": {
+    "num": {
+      "type": "toggle",
+      "blind": false,
+      "note": "Sticky layer. Only 'toggle' exists. Space and CapsLock are protected and cannot be mapped.",
+      "keys": {
+        "u": "7", "i": "8", "o": "9",
+        "j": "4", "k": "5", "l": "6",
+        "m": "1", "comma": "2", "period": "3",
+        "n": "0",
+        "slash": "Period",
+        "semicolon": "Enter"
+      }
+    }
+  }
+}
