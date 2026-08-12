@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Gate lane for services/hostlayer. One command, four checks, exit 0 or 1.
+    Repository gate lane. One command, seven checks, exit 0 or 1.
 
 .DESCRIPTION
     1. AutoHotkey syntax gate on every .ahk file (load errors, not logic).
@@ -8,7 +8,10 @@
     3. tests/hotkeynames.ahk  - proves the hotkey names those configs compile
        to are ones AutoHotkey actually accepts. /validate cannot cover this
        because it deliberately registers nothing.
-    4. The Python mirror suite.
+    4. The hostlayer Python mirror suite.
+    5. The HID protocol/remap Python suite.
+    6. The read-only device-audit Python suite.
+    7. Repository integration contracts.
 
     Deterministic, offline, no device. /ErrorStdOut is mandatory on the syntax
     gate: without it a load error opens a modal dialog and hangs forever.
@@ -84,7 +87,13 @@ Write-Host "  ahk     $AutoHotkey"
 
 # ---------------------------------------------------------------- 1. syntax
 Write-Head "AutoHotkey syntax gate"
-foreach ($f in @("core.ahk", "engine.ahk", "lib\jsonparse.ahk", "tests\hotkeynames.ahk")) {
+foreach ($f in @(
+    "core.ahk",
+    "engine.ahk",
+    "lib\jsonparse.ahk",
+    "tests\hotkeynames.ahk",
+    "tests\probe.ahk"
+)) {
     $full = Join-Path $service $f
     Invoke-Step -Name $f -Exe $AutoHotkey -Arguments @("/validate", "/ErrorStdOut", "`"$full`"")
 }
@@ -109,6 +118,39 @@ if (-not (Get-Command $python -ErrorAction SilentlyContinue)) { $python = "pytho
 Push-Location $service
 try {
     Invoke-Step -Name "unittest discover" -Exe $python -Arguments @("-m", "unittest", "discover", "-s", "tests")
+} finally {
+    Pop-Location
+}
+
+# ------------------------------------------------------------ 5. HID service
+Write-Head "HID protocol/remap suite"
+Push-Location $repo
+try {
+    Invoke-Step -Name "services/hid tests" -Exe $python -Arguments @(
+        "-m", "unittest", "discover", "-s", "services/hid/tests", "-t", "."
+    )
+} finally {
+    Pop-Location
+}
+
+# --------------------------------------------------------- 6. device audit
+Write-Head "Device-audit suite"
+Push-Location $repo
+try {
+    Invoke-Step -Name "services/device_audit tests" -Exe $python -Arguments @(
+        "-m", "unittest", "discover", "-s", "services/device_audit/tests", "-t", "."
+    )
+} finally {
+    Pop-Location
+}
+
+# --------------------------------------------------------- 7. integration
+Write-Head "Repository integration suite"
+Push-Location $repo
+try {
+    Invoke-Step -Name "integration tests" -Exe $python -Arguments @(
+        "-m", "unittest", "discover", "-s", "tests", "-t", "."
+    )
 } finally {
     Pop-Location
 }

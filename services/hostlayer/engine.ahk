@@ -176,7 +176,7 @@ RegisterAll(c) {
     global gRegistered, gHkToKey
 
     ; Correctness rule 1: "$*" means every modifier combination is captured and
-    ; the key is swallowed. The prior build registered bare F13..F22, so any
+    ; the key is swallowed. A prior build registered bare F-key tokens, so any
     ; modified press fell through and the raw F-key reached the app. Both the
     ; down and the up event are claimed, or the up leaks on its own.
     for k, b in c["bindings"] {

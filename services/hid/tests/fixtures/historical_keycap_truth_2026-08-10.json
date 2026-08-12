@@ -1,0 +1,14 @@
+{
+  "comment": "Historical test fixture only. This nine-key map was superseded after the F7/F9 keycaps were physically corrected and before the collision-free host tokens were added. Never apply it to the live board.",
+  "mappings": [
+    {"position": "F7", "send": "F9"},
+    {"position": "F9", "send": "F7"},
+    {"position": "Backtick", "send": "PrintScreen"},
+    {"position": "Win_L", "send": "Alt_L"},
+    {"position": "Alt_L", "send": "Win_L"},
+    {"position": "Alt_R", "send": "Ctrl_R"},
+    {"position": "PageUp", "send": "KeypadAsterisk"},
+    {"position": "PageDown", "send": "KeypadSlash"},
+    {"position": "End", "send": "KeypadMinus"}
+  ]
+}

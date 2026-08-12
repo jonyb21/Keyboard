@@ -1,0 +1,22 @@
+{
+  "comment": "Canonical firmware map for Jon's AULA F75 Max 0C45:800A, v3 2026-08-12. F7/F9 caps physically corrected, so no F-row swap. The table programs F1,F3,F5-F12 as the collision-free set F13-F15 and F18-F24. F16/F17 are deliberately skipped because the live CIDOO V21 runtime owns those bare tokens globally for its encoder. Apply: .\\.venv\\Scripts\\python.exe -m services.hid.cli remap apply services/hid/data/board_map.json",
+  "mappings": [
+    {"position": "Backtick", "send": "PrintScreen"},
+    {"position": "Win_L", "send": "Alt_L"},
+    {"position": "Alt_L", "send": "Win_L"},
+    {"position": "Alt_R", "send": "Ctrl_R"},
+    {"position": "PageUp", "send": "KeypadAsterisk"},
+    {"position": "PageDown", "send": "KeypadSlash"},
+    {"position": "End", "send": "KeypadMinus"},
+    {"position": "F1", "send": "0x68"},
+    {"position": "F3", "send": "0x69"},
+    {"position": "F5", "send": "0x6A"},
+    {"position": "F6", "send": "0x6D"},
+    {"position": "F7", "send": "0x6E"},
+    {"position": "F8", "send": "0x6F"},
+    {"position": "F9", "send": "0x70"},
+    {"position": "F10", "send": "0x71"},
+    {"position": "F11", "send": "0x72"},
+    {"position": "F12", "send": "0x73"}
+  ]
+}

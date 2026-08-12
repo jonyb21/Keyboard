@@ -1,0 +1,4 @@
+.rollback/
+__pycache__/
+*.py[cod]
+.venv/

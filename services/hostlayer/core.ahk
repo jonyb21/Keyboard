@@ -9,10 +9,11 @@
 ; Nothing here runs at load time except building lookup tables. This file is
 ; #Include-able from anywhere and is the unit the Python mirror suite ports.
 ;
-; Scope note: this engine only ever touches F13-F22 (the codes the board's own
-; firmware emits from its F-row) plus the keys of the F19 sticky num layer.
-; Space, CapsLock and every other key are protected by HL_ProtectedKeys() and
-; the validator refuses to bind them.
+; Scope note: the shipped config only touches F13-F15 and F18-F24 (the
+; collision-free codes the board emits from its F-row) plus the keys of the F21
+; sticky num layer. F16/F17 belong to the global CIDOO runtime. Space, CapsLock
+; and every other key are protected by HL_ProtectedKeys() and the validator
+; refuses to bind them.
 ;
 ; The tap-hold state machine below carries step labels (TH-L1 .. TH-L8) and the
 ; layer resolver carries LR-L1 .. LR-L3. The Python mirror in tests/mirror.py

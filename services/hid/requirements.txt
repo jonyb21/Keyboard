@@ -1,0 +1,6 @@
+# Runtime-only dependency, needed exclusively for talking to real hardware
+# (HidapiTransport in client.py and enumerate_hid in device.py).
+# Tests and --dry-run need nothing beyond the stdlib.
+# NOT installed by this service's build; install into a project-local venv
+# (py -m venv .venv) before live verification.
+hidapi==0.15.0

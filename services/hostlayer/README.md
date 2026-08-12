@@ -3,11 +3,13 @@
 The host-side layer engine for the AULA F75 Max. AutoHotkey v2, driven entirely
 from `layers.json`.
 
-The board's firmware already stores its own remap in board memory, so the
-keyboard types correctly on any PC with nothing installed. Part of that remap
-makes the F-row emit **F13-F22** (`0x68`-`0x71`) instead of F1-F12. Those are
-real USB HID codes that no physical keyboard produces, which means they can be
-bound to anything without ever colliding with the laptop keyboard.
+The board's firmware accepted the canonical remap transaction in board memory,
+so the map travels with the keyboard. That table programs physical F1, F3 and
+F5-F12 as the ten tokens **F13-F15 and F18-F24**.
+Those are real USB HID codes that a normal keyboard does not produce, so they
+do not collide with the laptop keyboard. F16 and F17 are deliberately absent:
+the live CIDOO runtime owns those two tokens globally, and AutoHotkey's hook
+cannot distinguish which keyboard produced them.
 
 This service is the only thing that gives those ten codes meaning. It adds two
 capabilities the stock firmware does not have: **tap versus hold** on a single
@@ -17,8 +19,8 @@ key, and a **sticky extra layer**.
 
 ## What it touches
 
-Nothing except F13-F22 and, while the num layer is on, twelve keys on the right
-hand. That is the whole surface.
+Nothing except F13-F15, F18-F24 and, while the num layer is on, twelve keys on
+the right hand. That is the whole surface.
 
 **Space and CapsLock are protected.** They are not bound, not registered, and
 the config validator refuses to name them. An earlier design put a nav layer on
@@ -36,20 +38,20 @@ by accident.
 | F1 | F13 | Undo (`Ctrl+Z`) | Redo (`Ctrl+Shift+Z`, or `Ctrl+Y` in SolidWorks and Excel) | Undo and redo are the same gesture at different pressures; the two apps that never adopted `Ctrl+Shift+Z` get their own chord. |
 | F3 | F14 | Focus Chrome | Focus Outlook | The two most-switched-to non-CAD apps: Chrome 16.2% of focus events, Outlook 5.8%. |
 | F5 | F15 | `Alt+Tab` (flip to last window) | Hold-to-browse switcher | A flip and a browse are different intents; splitting them removes the "tap Alt+Tab repeatedly and overshoot" failure. |
-| F6 | F16 | Focus SolidWorks | Focus Explorer (new window if none open) | SolidWorks is 19.1% of all app switches, the single biggest target. |
-| F7 | F17 | Focus InDesign (Beta) | Focus Photoshop (Beta) | The Adobe pair: InDesign 12%, Photoshop 5.5%. |
-| F8 | F18 | Mute | Previous track | See "why media sits here" below. |
-| F9 | F19 | Toggle the **num** layer | — | Tap-only, so it fires on key-down with no delay. |
-| F10 | F20 | Paste (`Ctrl+V`) | Copy (`Ctrl+C`) | The two highest-count chords measured: paste 778 and copy 443 in 13 days. Tap gets the more frequent one. |
-| F11 | F21 | Play / Pause | Next track | See below. |
-| F12 | F22 | Save (`Ctrl+S`) | Save As (`Ctrl+Shift+S`) | Same gesture, escalating commitment. |
+| F6 | F18 | Focus SolidWorks | Focus Explorer (new window if none open) | SolidWorks is 19.1% of all app switches, the single biggest target. |
+| F7 | F19 | Focus Claude | Focus Remote Desktop | The two live tools on this workstation replace removed Adobe Beta installs. |
+| F8 | F20 | Mute | Previous track | See "why media sits here" below. |
+| F9 | F21 | Toggle the **num** layer | — | Tap-only, so it fires on key-down with no delay. |
+| F10 | F22 | Paste (`Ctrl+V`) | Copy (`Ctrl+C`) | The two highest-count chords measured: paste 778 and copy 443 in 13 days. Tap gets the more frequent one. |
+| F11 | F23 | Play / Pause | Next track | See below. |
+| F12 | F24 | Save (`Ctrl+S`) | Save As (`Ctrl+Shift+S`) | Same gesture, escalating commitment. |
 
 F2, F4 and Esc are untouched by the firmware remap and untouched here.
 
 **764 app switches per day** were measured, which is why five of the ten keys are
 focus-or-launch rather than chords.
 
-### Why media sits on F18 and F21
+### Why media sits on F20 and F23
 
 Media keys are the two bindings with no evidence behind them. Volume and
 transport keys never reach an application, so the keystroke telemetry that
@@ -78,18 +80,18 @@ Resolved install paths on this machine (all verified to exist, asserted by
 | Outlook | `OUTLOOK.EXE` | `C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE` |
 | SolidWorks | `SLDWORKS.exe` | `C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\SLDWORKS.exe` |
 | Explorer | `explorer.exe` + `CabinetWClass` | `C:\Windows\explorer.exe` |
-| InDesign Beta | `InDesign (Beta).exe` | `C:\Program Files\Adobe\Adobe InDesign 2026 (Beta)\InDesign (Beta).exe` |
-| Photoshop Beta | `Photoshop.exe` | `C:\Program Files\Adobe\Adobe Photoshop (Beta)\Photoshop.exe` |
+| Claude | `claude.exe` | `C:\Users\jonbr\AppData\Local\AnthropicClaude\claude.exe` |
+| Remote Desktop | `mstsc.exe` | `C:\Windows\System32\mstsc.exe` |
 
 Outlook is the classic client. New Outlook (`olk.exe`) is installed but unused,
-so it is not the target. Photoshop Beta ships the same exe name as the shipping
-builds; the Beta is the only live install here and owns the `App Paths` default.
+so it is not the target. Claude uses its stable per-user launcher; Remote
+Desktop uses the Windows system executable.
 
 ---
 
 ## The num layer
 
-`F19` toggles it. **Sticky**: it stays on until you tap F19 again. The tray icon
+`F21` toggles it. **Sticky**: it stays on until you tap F21 again. The tray icon
 tooltip and a brief tray tip tell you which way it went, because a sticky layer
 with no feedback is a trap.
 
@@ -166,10 +168,10 @@ powershell -ExecutionPolicy Bypass -File startup\install-startup.ps1
 powershell -ExecutionPolicy Bypass -File startup\uninstall-startup.ps1
 ```
 
-Install creates a shortcut in your Startup folder pointing at `AutoHotkey64.exe`
-with `engine.ahk` as its argument. It validates the config first and refuses to
-install a broken one. Both scripts are idempotent. Uninstall leaves a running
-engine alone unless you pass `-StopRunning`.
+Install creates a hidden-launch shortcut in your Startup folder pointing at
+`AutoHotkey64.exe` with `engine.ahk` as its argument. It validates the config
+first and refuses to install a broken one. Both scripts are idempotent.
+Uninstall leaves a running engine alone unless you pass `-StopRunning`.
 
 No admin rights, no Run key, no scheduled task: a Startup shortcut survives on a
 managed machine and you can see and delete it yourself.
@@ -218,15 +220,15 @@ cd services\hostlayer
 py -m unittest discover -s tests
 ```
 
-137 tests, no network, no device, fake clock, well under a second.
+139 tests, no network, no device, fake clock, well under a second.
 
 ### Bugs this design exists to prevent
 
-1. **F-row leakage.** The previous build registered bare `F13`..`F22`, so any
-   modified press fell through and the raw F-key reached the application; seven
-   leaks were measured. Everything is now registered as `$*F13` and `$*F13 up`,
-   which claims every modifier combination and both edges. `InstallKeybdHook` is
-   called explicitly rather than left to chance.
+1. **F-row leakage.** A previous build registered its tokens as bare hotkeys, so
+   any modified press fell through and the raw F-key reached the application;
+   seven leaks were measured. Every configured token is now registered with the
+   `$*` prefix on both edges, for example `$*F13` and `$*F13 up`.
+   `InstallKeybdHook` is called explicitly rather than left to chance.
 2. **Autorepeat firing the tap action.** Holding a key past the threshold makes
    Windows deliver repeated key-down events with no key-up. The state machine
    treats any key-down while `pending`, `held` or `downfired` as a repeat and
@@ -246,10 +248,11 @@ py -m unittest discover -s tests
 cannot tell them apart. So while these bindings are aimed at the AULA, they
 apply to whatever is plugged in.
 
-In practice this barely bites, because the only keys bound are F13-F22, which no
-normal keyboard can produce. The exception is the num layer: while it is on, its
-twelve keys are remapped on **every** keyboard, including the laptop's built-in
-one. Turn the layer off and the interception stops completely.
+In practice this barely bites, because the only base keys bound are F13-F15 and
+F18-F24, which no normal keyboard can produce. F16/F17 are excluded because the
+CIDOO runtime already owns them globally. The exception is the num layer: while
+it is on, its twelve keys are remapped on **every** keyboard, including the
+laptop's built-in one. Turn the layer off and the interception stops completely.
 
 Real per-device filtering needs a driver-level input stack (Interception, or AHK
 via AutoHotInterception). That is a separate dependency with its own install and
@@ -258,6 +261,6 @@ This is a known limitation, not an oversight.
 
 Two smaller ones:
 
-- **Pause really pauses.** While hotkeys are suspended, F13-F22 are unbound and
-  will reach applications as raw F13-F22 codes. Most apps ignore them.
+- **Pause really pauses.** While hotkeys are suspended, F13-F15 and F18-F24 are
+  unbound and will reach applications as raw F-key codes. Most apps ignore them.
 - **Media key usage is unmeasurable.** See above.

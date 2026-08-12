@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "AULA F75 Max host layer. The board's own firmware makes its F-row emit F13-F22, codes no physical keyboard produces. This file is the only place those codes get meaning. Space, CapsLock and every other key are left stock.",
+  "description": "AULA F75 Max host layer. The board's own firmware maps F1/F3/F5-F12 to the collision-free tokens F13-F15 and F18-F24. F16/F17 stay unbound because the CIDOO runtime owns them globally. Space, CapsLock and every other key are left stock.",
   "tapHoldMs": 200,
 
   "appGroups": {
@@ -44,7 +44,7 @@
       "hold": { "builtin": "altTabBrowse" }
     },
 
-    "F16": {
+    "F18": {
       "note": "SolidWorks is 19.1 percent of all app switches, the single biggest target. Explorer on hold: activate an existing browser window, else open a new one.",
       "tap": {
         "focusApp": {
@@ -62,47 +62,46 @@
       }
     },
 
-    "F17": {
-      "note": "The Adobe pair: InDesign 12 percent of switches, Photoshop 5.5 percent. Both point at the Beta builds, which are the live installs on this machine.",
+    "F19": {
+      "note": "Current live-tool pair. Tap focuses or launches Claude; hold focuses or launches the Remote Desktop client.",
       "tap": {
         "focusApp": {
-          "exe": "InDesign (Beta).exe",
-          "launch": "C:\\Program Files\\Adobe\\Adobe InDesign 2026 (Beta)\\InDesign (Beta).exe"
+          "exe": "claude.exe",
+          "launch": "C:\\Users\\jonbr\\AppData\\Local\\AnthropicClaude\\claude.exe"
         }
       },
       "hold": {
         "focusApp": {
-          "exe": "Photoshop.exe",
-          "launch": "C:\\Program Files\\Adobe\\Adobe Photoshop (Beta)\\Photoshop.exe",
-          "note": "Photoshop Beta ships the same exe name as the shipping builds; the Beta is the only live install here and owns the App Paths default."
+          "exe": "mstsc.exe",
+          "launch": "C:\\Windows\\System32\\mstsc.exe"
         }
       }
     },
 
-    "F18": {
-      "note": "Media keys sit on F18/F21 because the telemetry cannot see them: they never reach an app, so there is no evidence they earn a better key.",
+    "F20": {
+      "note": "Media keys sit on F20/F23 because the telemetry cannot see them: they never reach an app, so there is no evidence they earn a better key.",
       "tap": { "send": "Volume_Mute" },
       "hold": { "send": "Media_Prev" }
     },
 
-    "F19": {
+    "F21": {
       "note": "Sticky num layer toggle. Tap-only, so it fires on key-down with zero delay.",
       "tap": { "layerToggle": "num" }
     },
 
-    "F20": {
+    "F22": {
       "note": "Paste 778 times and copy 443 times in 13 days, the two highest-count chords measured. Tap gets the more frequent one.",
       "tap": { "send": "Ctrl+V" },
       "hold": { "send": "Ctrl+C" }
     },
 
-    "F21": {
-      "note": "See F18 on why media landed here.",
+    "F23": {
+      "note": "See F20 on why media landed here.",
       "tap": { "send": "Media_Play_Pause" },
       "hold": { "send": "Media_Next" }
     },
 
-    "F22": {
+    "F24": {
       "note": "Save on tap, Save As on hold.",
       "tap": { "send": "Ctrl+S" },
       "hold": { "send": "Ctrl+Shift+S" }
@@ -113,7 +112,7 @@
     "num": {
       "type": "toggle",
       "blind": false,
-      "note": "Right-hand numeric pad. Toggled by F19, stays on until toggled off. Space is deliberately absent: it stays a plain Space.",
+      "note": "Right-hand numeric pad. Toggled by F21, stays on until toggled off. Space is deliberately absent: it stays a plain Space.",
       "keys": {
         "u": "7", "i": "8", "o": "9",
         "j": "4", "k": "5", "l": "6",

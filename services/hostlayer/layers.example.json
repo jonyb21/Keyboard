@@ -46,7 +46,7 @@
       "hold": { "builtin": "altTabBrowse" }
     },
 
-    "F16": {
+    "F18": {
       "note": "windowClass narrows which window counts. Needed for explorer.exe, which is also the desktop and the taskbar.",
       "tap": {
         "focusApp": {
@@ -57,17 +57,17 @@
       }
     },
 
-    "F17": {
+    "F19": {
       "note": "A binding with no hold is tap-only and fires the instant the key goes down.",
       "tap": { "send": "Ctrl+S" }
     },
 
-    "F19": {
+    "F21": {
       "note": "layerToggle: flip a sticky layer on or off.",
       "tap": { "layerToggle": "num" }
     },
 
-    "F20": {
+    "F22": {
       "note": "swallow: eat the key and emit nothing. Use it so a raw F-key can never leak to an app.",
       "tap": { "send": "Ctrl+V" },
       "hold": { "swallow": true }
