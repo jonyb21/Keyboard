@@ -106,10 +106,9 @@ class TestClassify(unittest.TestCase):
             device.classify(rec(0x0C45, 0x800A, 0, 0, 2)),
             device.KIND_WIRED_SCREEN,
         )
-        self.assertEqual(
-            device.classify(rec(0x05AC, 0x024F, 0, 0, 3)),
-            device.KIND_DONGLE_CONFIG,
-        )
+        # The dongle identity contract includes usage page/usage. Interface 3
+        # alone cannot prove the raw configuration collection.
+        self.assertIsNone(device.classify(rec(0x05AC, 0x024F, 0, 0, 3)))
         self.assertIsNone(device.classify(rec(0x0C45, 0x800A, 0, 0, 0)))
 
     def test_missing_fields_tolerated(self):
@@ -205,6 +204,81 @@ class TestDiscover(unittest.TestCase):
         self.assertEqual(found.wired_config.path, "exact_f75max")
         self.assertTrue(found.wired_config.is_exact_wired_target)
 
+
+class TestExactScreenPair(unittest.TestCase):
+    def test_accepts_one_exact_control_and_screen(self):
+        control, screen = device.require_exact_screen_pair(device.discover(WIRED_ENUM))
+        self.assertEqual(control.path, "mi_03_config")
+        self.assertEqual(screen.path, "mi_02_screen")
+        self.assertTrue(control.is_exact_wired_config)
+        self.assertTrue(screen.is_exact_wired_screen)
+
+    def test_rejects_missing_or_duplicate_endpoints(self):
+        control = WIRED_ENUM[-1]
+        screen = WIRED_ENUM[-2]
+        cases = (
+            [],
+            [control],
+            [screen],
+            [control, control.copy(), screen],
+            [control, screen, screen.copy()],
+        )
+        for records in cases:
+            with self.subTest(count=len(records)):
+                with self.assertRaises(device.DeviceSelectionError):
+                    device.require_exact_screen_pair(device.discover(records))
+
+    def test_rejects_wrong_model_revision_or_interface(self):
+        wrong_product = dict(WIRED_ENUM[-1], product_string="AULA F108Pro")
+        wrong_release = dict(WIRED_ENUM[-2], release_number=0x0107)
+        wrong_interface = dict(WIRED_ENUM[-2], interface_number=3)
+        for records in (
+            [wrong_product, WIRED_ENUM[-2]],
+            [WIRED_ENUM[-1], wrong_release],
+            [WIRED_ENUM[-1], wrong_interface],
+        ):
+            with self.assertRaises(device.DeviceSelectionError):
+                device.require_exact_screen_pair(device.discover(records))
+
+    def test_rejects_unpaired_serial_or_pair_token(self):
+        control = dict(WIRED_ENUM[-1], serial_number="board-a")
+        screen = dict(WIRED_ENUM[-2], serial_number="board-b")
+        with self.assertRaisesRegex(device.DeviceSelectionError, "serial"):
+            device.require_exact_screen_pair(device.discover([control, screen]))
+
+        control = dict(WIRED_ENUM[-1], pair_token="location-a")
+        screen = dict(WIRED_ENUM[-2], pair_token="location-b")
+        with self.assertRaisesRegex(device.DeviceSelectionError, "pair token"):
+            device.require_exact_screen_pair(device.discover([control, screen]))
+
+
+class TestExactConfigSelectors(unittest.TestCase):
+    def test_selects_one_exact_wired_and_dongle_endpoint(self):
+        found = device.discover(WIRED_ENUM + DONGLE_ENUM)
+        self.assertEqual(
+            device.require_exact_wired_config(found).path, "mi_03_config"
+        )
+        self.assertEqual(
+            device.require_exact_dongle_config(found).path, "d_mi_03_raw"
+        )
+
+    def test_rejects_missing_duplicate_or_wrong_wired_config(self):
+        exact = WIRED_ENUM[-1]
+        wrong = dict(exact, product_string="AULA F108Pro")
+        cases = ([], [exact, dict(exact, path="wired-2")], [wrong])
+        for records in cases:
+            with self.subTest(records=len(records)):
+                with self.assertRaises(device.DeviceSelectionError):
+                    device.require_exact_wired_config(device.discover(records))
+
+    def test_rejects_missing_duplicate_or_wrong_dongle_config(self):
+        exact = DONGLE_ENUM[-1]
+        wrong_usage = dict(exact, usage=0x62)
+        cases = ([], [exact, dict(exact, path="dongle-2")], [wrong_usage])
+        for records in cases:
+            with self.subTest(records=len(records)):
+                with self.assertRaises(device.DeviceSelectionError):
+                    device.require_exact_dongle_config(device.discover(records))
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,10 @@
 {
-  "comment": "AULA F75 Max physical key table, parsed from layouts/rgb-keyboard.xml shipped with the exact AULA vendor app v1.0.0.5. key_index is the firmware slot index used by the 04 11 / 04 27 remap tables and per-key lighting; usage is the USB HID usage code (page 0x07), except Fn (0xAF) which is a vendor pseudo-code, not a real HID usage.",
+  "comment": "AULA F75 Max physical key table, parsed from layouts/rgb-keyboard.xml shipped with the exact AULA vendor app v1.0.0.5. key_index selects 04 11 / 04 27 remap slots; light_index is the vendor per-key lighting slot (equal on this model but retained as a separate contract field). usage is the USB HID usage code (page 0x07), except Fn (0xAF), a vendor pseudo-code rather than a real HID usage.",
   "source": "layouts/rgb-keyboard.xml (AULA vendor app v1.0.0.5)",
   "keys": [
     {
       "key_index": 1,
+      "light_index": 1,
       "usage": "0x29",
       "row": 0,
       "col": 0,
@@ -11,6 +12,7 @@
     },
     {
       "key_index": 2,
+      "light_index": 2,
       "usage": "0x3A",
       "row": 0,
       "col": 1,
@@ -18,6 +20,7 @@
     },
     {
       "key_index": 3,
+      "light_index": 3,
       "usage": "0x3B",
       "row": 0,
       "col": 2,
@@ -25,6 +28,7 @@
     },
     {
       "key_index": 4,
+      "light_index": 4,
       "usage": "0x3C",
       "row": 0,
       "col": 3,
@@ -32,6 +36,7 @@
     },
     {
       "key_index": 5,
+      "light_index": 5,
       "usage": "0x3D",
       "row": 0,
       "col": 4,
@@ -39,6 +44,7 @@
     },
     {
       "key_index": 6,
+      "light_index": 6,
       "usage": "0x3E",
       "row": 0,
       "col": 5,
@@ -46,6 +52,7 @@
     },
     {
       "key_index": 7,
+      "light_index": 7,
       "usage": "0x3F",
       "row": 0,
       "col": 6,
@@ -53,6 +60,7 @@
     },
     {
       "key_index": 8,
+      "light_index": 8,
       "usage": "0x40",
       "row": 0,
       "col": 7,
@@ -60,6 +68,7 @@
     },
     {
       "key_index": 9,
+      "light_index": 9,
       "usage": "0x41",
       "row": 0,
       "col": 8,
@@ -67,6 +76,7 @@
     },
     {
       "key_index": 10,
+      "light_index": 10,
       "usage": "0x42",
       "row": 0,
       "col": 9,
@@ -74,6 +84,7 @@
     },
     {
       "key_index": 11,
+      "light_index": 11,
       "usage": "0x43",
       "row": 0,
       "col": 10,
@@ -81,6 +92,7 @@
     },
     {
       "key_index": 12,
+      "light_index": 12,
       "usage": "0x44",
       "row": 0,
       "col": 11,
@@ -88,6 +100,7 @@
     },
     {
       "key_index": 13,
+      "light_index": 13,
       "usage": "0x45",
       "row": 0,
       "col": 12,
@@ -95,6 +108,7 @@
     },
     {
       "key_index": 19,
+      "light_index": 19,
       "usage": "0x35",
       "row": 1,
       "col": 0,
@@ -102,6 +116,7 @@
     },
     {
       "key_index": 20,
+      "light_index": 20,
       "usage": "0x1E",
       "row": 1,
       "col": 1,
@@ -109,6 +124,7 @@
     },
     {
       "key_index": 21,
+      "light_index": 21,
       "usage": "0x1F",
       "row": 1,
       "col": 2,
@@ -116,6 +132,7 @@
     },
     {
       "key_index": 22,
+      "light_index": 22,
       "usage": "0x20",
       "row": 1,
       "col": 3,
@@ -123,6 +140,7 @@
     },
     {
       "key_index": 23,
+      "light_index": 23,
       "usage": "0x21",
       "row": 1,
       "col": 4,
@@ -130,6 +148,7 @@
     },
     {
       "key_index": 24,
+      "light_index": 24,
       "usage": "0x22",
       "row": 1,
       "col": 5,
@@ -137,6 +156,7 @@
     },
     {
       "key_index": 25,
+      "light_index": 25,
       "usage": "0x23",
       "row": 1,
       "col": 6,
@@ -144,6 +164,7 @@
     },
     {
       "key_index": 26,
+      "light_index": 26,
       "usage": "0x24",
       "row": 1,
       "col": 7,
@@ -151,6 +172,7 @@
     },
     {
       "key_index": 27,
+      "light_index": 27,
       "usage": "0x25",
       "row": 1,
       "col": 8,
@@ -158,6 +180,7 @@
     },
     {
       "key_index": 28,
+      "light_index": 28,
       "usage": "0x26",
       "row": 1,
       "col": 9,
@@ -165,6 +188,7 @@
     },
     {
       "key_index": 29,
+      "light_index": 29,
       "usage": "0x27",
       "row": 1,
       "col": 10,
@@ -172,6 +196,7 @@
     },
     {
       "key_index": 30,
+      "light_index": 30,
       "usage": "0x2D",
       "row": 1,
       "col": 11,
@@ -179,6 +204,7 @@
     },
     {
       "key_index": 31,
+      "light_index": 31,
       "usage": "0x2E",
       "row": 1,
       "col": 12,
@@ -186,6 +212,7 @@
     },
     {
       "key_index": 37,
+      "light_index": 37,
       "usage": "0x2B",
       "row": 2,
       "col": 0,
@@ -193,6 +220,7 @@
     },
     {
       "key_index": 38,
+      "light_index": 38,
       "usage": "0x14",
       "row": 2,
       "col": 1,
@@ -200,6 +228,7 @@
     },
     {
       "key_index": 39,
+      "light_index": 39,
       "usage": "0x1A",
       "row": 2,
       "col": 2,
@@ -207,6 +236,7 @@
     },
     {
       "key_index": 40,
+      "light_index": 40,
       "usage": "0x08",
       "row": 2,
       "col": 3,
@@ -214,6 +244,7 @@
     },
     {
       "key_index": 41,
+      "light_index": 41,
       "usage": "0x15",
       "row": 2,
       "col": 4,
@@ -221,6 +252,7 @@
     },
     {
       "key_index": 42,
+      "light_index": 42,
       "usage": "0x17",
       "row": 2,
       "col": 5,
@@ -228,6 +260,7 @@
     },
     {
       "key_index": 43,
+      "light_index": 43,
       "usage": "0x1C",
       "row": 2,
       "col": 6,
@@ -235,6 +268,7 @@
     },
     {
       "key_index": 44,
+      "light_index": 44,
       "usage": "0x18",
       "row": 2,
       "col": 7,
@@ -242,6 +276,7 @@
     },
     {
       "key_index": 45,
+      "light_index": 45,
       "usage": "0x0C",
       "row": 2,
       "col": 8,
@@ -249,6 +284,7 @@
     },
     {
       "key_index": 46,
+      "light_index": 46,
       "usage": "0x12",
       "row": 2,
       "col": 9,
@@ -256,6 +292,7 @@
     },
     {
       "key_index": 47,
+      "light_index": 47,
       "usage": "0x13",
       "row": 2,
       "col": 10,
@@ -263,6 +300,7 @@
     },
     {
       "key_index": 48,
+      "light_index": 48,
       "usage": "0x2F",
       "row": 2,
       "col": 11,
@@ -270,6 +308,7 @@
     },
     {
       "key_index": 49,
+      "light_index": 49,
       "usage": "0x30",
       "row": 2,
       "col": 12,
@@ -277,6 +316,7 @@
     },
     {
       "key_index": 55,
+      "light_index": 55,
       "usage": "0x39",
       "row": 3,
       "col": 0,
@@ -284,6 +324,7 @@
     },
     {
       "key_index": 56,
+      "light_index": 56,
       "usage": "0x04",
       "row": 3,
       "col": 1,
@@ -291,6 +332,7 @@
     },
     {
       "key_index": 57,
+      "light_index": 57,
       "usage": "0x16",
       "row": 3,
       "col": 2,
@@ -298,6 +340,7 @@
     },
     {
       "key_index": 58,
+      "light_index": 58,
       "usage": "0x07",
       "row": 3,
       "col": 3,
@@ -305,6 +348,7 @@
     },
     {
       "key_index": 59,
+      "light_index": 59,
       "usage": "0x09",
       "row": 3,
       "col": 4,
@@ -312,6 +356,7 @@
     },
     {
       "key_index": 60,
+      "light_index": 60,
       "usage": "0x0A",
       "row": 3,
       "col": 5,
@@ -319,6 +364,7 @@
     },
     {
       "key_index": 61,
+      "light_index": 61,
       "usage": "0x0B",
       "row": 3,
       "col": 6,
@@ -326,6 +372,7 @@
     },
     {
       "key_index": 62,
+      "light_index": 62,
       "usage": "0x0D",
       "row": 3,
       "col": 7,
@@ -333,6 +380,7 @@
     },
     {
       "key_index": 63,
+      "light_index": 63,
       "usage": "0x0E",
       "row": 3,
       "col": 8,
@@ -340,6 +388,7 @@
     },
     {
       "key_index": 64,
+      "light_index": 64,
       "usage": "0x0F",
       "row": 3,
       "col": 9,
@@ -347,6 +396,7 @@
     },
     {
       "key_index": 65,
+      "light_index": 65,
       "usage": "0x33",
       "row": 3,
       "col": 10,
@@ -354,6 +404,7 @@
     },
     {
       "key_index": 66,
+      "light_index": 66,
       "usage": "0x34",
       "row": 3,
       "col": 11,
@@ -361,6 +412,7 @@
     },
     {
       "key_index": 67,
+      "light_index": 67,
       "usage": "0x31",
       "row": 2,
       "col": 13,
@@ -368,6 +420,7 @@
     },
     {
       "key_index": 73,
+      "light_index": 73,
       "usage": "0xE1",
       "row": 4,
       "col": 0,
@@ -375,6 +428,7 @@
     },
     {
       "key_index": 74,
+      "light_index": 74,
       "usage": "0x1D",
       "row": 4,
       "col": 2,
@@ -382,6 +436,7 @@
     },
     {
       "key_index": 75,
+      "light_index": 75,
       "usage": "0x1B",
       "row": 4,
       "col": 3,
@@ -389,6 +444,7 @@
     },
     {
       "key_index": 76,
+      "light_index": 76,
       "usage": "0x06",
       "row": 4,
       "col": 4,
@@ -396,6 +452,7 @@
     },
     {
       "key_index": 77,
+      "light_index": 77,
       "usage": "0x19",
       "row": 4,
       "col": 5,
@@ -403,6 +460,7 @@
     },
     {
       "key_index": 78,
+      "light_index": 78,
       "usage": "0x05",
       "row": 4,
       "col": 6,
@@ -410,6 +468,7 @@
     },
     {
       "key_index": 79,
+      "light_index": 79,
       "usage": "0x11",
       "row": 4,
       "col": 7,
@@ -417,6 +476,7 @@
     },
     {
       "key_index": 80,
+      "light_index": 80,
       "usage": "0x10",
       "row": 4,
       "col": 8,
@@ -424,6 +484,7 @@
     },
     {
       "key_index": 81,
+      "light_index": 81,
       "usage": "0x36",
       "row": 4,
       "col": 9,
@@ -431,6 +492,7 @@
     },
     {
       "key_index": 82,
+      "light_index": 82,
       "usage": "0x37",
       "row": 4,
       "col": 10,
@@ -438,6 +500,7 @@
     },
     {
       "key_index": 83,
+      "light_index": 83,
       "usage": "0x38",
       "row": 4,
       "col": 11,
@@ -445,6 +508,7 @@
     },
     {
       "key_index": 84,
+      "light_index": 84,
       "usage": "0xE5",
       "row": 4,
       "col": 12,
@@ -452,6 +516,7 @@
     },
     {
       "key_index": 85,
+      "light_index": 85,
       "usage": "0x28",
       "row": 3,
       "col": 13,
@@ -459,6 +524,7 @@
     },
     {
       "key_index": 91,
+      "light_index": 91,
       "usage": "0xE0",
       "row": 5,
       "col": 0,
@@ -466,6 +532,7 @@
     },
     {
       "key_index": 92,
+      "light_index": 92,
       "usage": "0xE3",
       "row": 5,
       "col": 1,
@@ -473,6 +540,7 @@
     },
     {
       "key_index": 93,
+      "light_index": 93,
       "usage": "0xE2",
       "row": 5,
       "col": 2,
@@ -480,6 +548,7 @@
     },
     {
       "key_index": 94,
+      "light_index": 94,
       "usage": "0x2C",
       "row": 5,
       "col": 6,
@@ -487,6 +556,7 @@
     },
     {
       "key_index": 95,
+      "light_index": 95,
       "usage": "0xE6",
       "row": 5,
       "col": 9,
@@ -494,6 +564,7 @@
     },
     {
       "key_index": 96,
+      "light_index": 96,
       "usage": "0xAF",
       "row": 5,
       "col": 10,
@@ -501,6 +572,7 @@
     },
     {
       "key_index": 99,
+      "light_index": 99,
       "usage": "0x50",
       "row": 5,
       "col": 12,
@@ -508,6 +580,7 @@
     },
     {
       "key_index": 100,
+      "light_index": 100,
       "usage": "0x51",
       "row": 5,
       "col": 13,
@@ -515,6 +588,7 @@
     },
     {
       "key_index": 101,
+      "light_index": 101,
       "usage": "0x52",
       "row": 4,
       "col": 13,
@@ -522,6 +596,7 @@
     },
     {
       "key_index": 102,
+      "light_index": 102,
       "usage": "0x4F",
       "row": 5,
       "col": 14,
@@ -529,6 +604,7 @@
     },
     {
       "key_index": 103,
+      "light_index": 103,
       "usage": "0x2A",
       "row": 1,
       "col": 13,
@@ -536,6 +612,7 @@
     },
     {
       "key_index": 118,
+      "light_index": 118,
       "usage": "0x4B",
       "row": 2,
       "col": 14,
@@ -543,6 +620,7 @@
     },
     {
       "key_index": 119,
+      "light_index": 119,
       "usage": "0x4C",
       "row": 1,
       "col": 14,
@@ -550,6 +628,7 @@
     },
     {
       "key_index": 120,
+      "light_index": 120,
       "usage": "0x4D",
       "row": 4,
       "col": 14,
@@ -557,6 +636,7 @@
     },
     {
       "key_index": 121,
+      "light_index": 121,
       "usage": "0x4E",
       "row": 3,
       "col": 14,

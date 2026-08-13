@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "name": "Focus Core",
+      "slug": "focus-core",
+      "description": "Low-distraction deep blue base with a bright cyan typing core.",
+      "stock": {
+        "mode": "Static",
+        "color": "168BFF",
+        "brightness": 2,
+        "speed": 3,
+        "direction": 0,
+        "colorful": false
+      },
+      "per_key": {
+        "default": "06142B",
+        "groups": [
+          {
+            "color": "17BFFF",
+            "keys": ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Z", "X", "C", "V", "B", "N", "M"]
+          },
+          {
+            "color": "8DEBFF",
+            "keys": ["Esc", "Enter", "Space", "Backspace"]
+          },
+          {
+            "color": "2454A6",
+            "keys": ["Left", "Down", "Up", "Right", "Delete", "PageUp", "PageDown", "End"]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Aurora",
+      "slug": "aurora",
+      "description": "Cyan, blue, and violet sweep using the verified stock Flowing engine.",
+      "stock": {
+        "mode": "Flowing",
+        "color": "7D42FF",
+        "brightness": 4,
+        "speed": 2,
+        "direction": 0,
+        "colorful": true
+      },
+      "per_key": {
+        "default": "071128",
+        "groups": [
+          {
+            "color": "18E5FF",
+            "keys": ["Esc", "Backtick", "1", "2", "3", "Tab", "Q", "W", "E", "CapsLock", "A", "S", "D", "Shift_L", "Z", "X", "Ctrl_L", "Win_L", "Alt_L"]
+          },
+          {
+            "color": "2375FF",
+            "keys": ["F1", "F2", "F3", "F4", "4", "5", "6", "R", "T", "Y", "F", "G", "H", "C", "V", "B", "Space"]
+          },
+          {
+            "color": "8A42FF",
+            "keys": ["F5", "F6", "F7", "F8", "7", "8", "9", "U", "I", "O", "J", "K", "L", "N", "M", "Comma", "Alt_R", "Fn"]
+          },
+          {
+            "color": "D764FF",
+            "keys": ["F9", "F10", "F11", "F12", "0", "Minus", "Equal", "Backspace", "P", "LBracket", "RBracket", "Backslash", "Semicolon", "Quote", "Enter", "Period", "Slash", "Shift_R", "Up", "Left", "Down", "Right", "Delete", "PageUp", "PageDown", "End"]
+          }
+        ]
+      }
+    }
+  ]
+}

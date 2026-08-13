@@ -31,6 +31,10 @@ DONGLE_REPORT_SIZE = 32
 # [F108] pkg/aula/device.go: cmdDelay = 35 * time.Millisecond.
 COMMAND_DELAY_S = 0.035
 
+# Jon-local MI_02 page ACK prefix. Captured 2026-08-12 on the exact
+# 0C45:800A REV_0108 board: all 9 test-pattern pages returned 01 5A 02.
+SCREEN_ACK_PREFIX: bytes | None = b"\x01\x5A\x02"
+
 # Trailer marker bytes, wire order AA 55 (uint16 0x55AA little-endian).
 # [F108] ai-docs/hid-protocol.md "Trailer" (USB-capture confirmed);
 # [OSX] Sources/AulaF75Bar/main.m timeCommand[62]=0xaa, [63]=0x55.
@@ -250,6 +254,29 @@ def build_wired_clock_init() -> bytes:
     return _wired({0: 0x04, 1: 0x28, 8: 0x01})
 
 
+def build_wired_screen_init(page_count: int) -> bytes:
+    """`04 72` LCD transfer metadata, with page count little-endian.
+
+    Exact F75 Max vendor flow: byte 2 selects LCD slot 1 and bytes 8-9
+    contain the number of 4096-byte pages.  The command requires a feature
+    readback ACK on the MI_03 control collection.
+    """
+
+    if isinstance(page_count, bool) or not isinstance(page_count, int):
+        raise ProtocolError("screen page_count must be an integer")
+    if not 1 <= page_count <= 0xFFFF:
+        raise ProtocolError("screen page_count must be from 1 through 65535")
+    return _wired(
+        {
+            0: 0x04,
+            1: 0x72,
+            2: 0x01,
+            8: page_count & 0xFF,
+            9: (page_count >> 8) & 0xFF,
+        }
+    )
+
+
 def build_wired_clock_data(
     year: int,
     month: int,
@@ -306,6 +333,21 @@ def parse_wired_ack(response: bytes, command: bytes | None = None) -> bool:
     if command is not None and response[:2] != bytes(command[:2]):
         return False
     return response[3] == 0x01
+
+
+def parse_wired_payload_echo(response: bytes, command: bytes) -> bool:
+    """True only when a wired readback exactly echoes the full command.
+
+    Jon's exact F75 Max returned the 64-byte `00 01` clock-data payload rather
+    than a byte-3 status ACK. Byte 3 is the year offset in that payload, so the
+    generic status parser must not be used for this one command.
+    """
+    return (
+        len(command) == WIRED_REPORT_SIZE
+        and command[:2] == b"\x00\x01"
+        and len(response) == WIRED_REPORT_SIZE
+        and response == bytes(command)
+    )
 
 
 # --- Wired key remap (04 11 normal / 04 27 FN layer) -----------------------

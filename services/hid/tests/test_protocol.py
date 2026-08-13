@@ -58,6 +58,23 @@ class TestChecksum(unittest.TestCase):
             protocol.checksum8(b"\x00" * 4, 4)
 
 
+class TestScreenProtocol(unittest.TestCase):
+    def test_screen_metadata_golden_and_little_endian_pages(self):
+        packet = protocol.build_wired_screen_init(2009)
+        self.assertEqual(packet[:3], b"\x04\x72\x01")
+        self.assertEqual(packet[8:10], b"\xd9\x07")
+        self.assertEqual(len(packet), protocol.WIRED_REPORT_SIZE)
+        self.assertEqual(packet[3:8], bytes(5))
+        self.assertEqual(packet[10:], bytes(54))
+
+    def test_screen_metadata_page_bounds(self):
+        for pages in (1, 0xFFFF):
+            self.assertEqual(len(protocol.build_wired_screen_init(pages)), 64)
+        for pages in (0, 0x10000, True):
+            with self.assertRaises(ProtocolError):
+                protocol.build_wired_screen_init(pages)
+
+
 class TestBattery(unittest.TestCase):
     def test_battery_request_golden(self):
         # [OSX] AulaF75Bar/main.m: payload[0]=0x20, payload[1]=0x01,
@@ -160,6 +177,19 @@ class TestWiredCommands(unittest.TestCase):
             protocol.build_wired_clock_data(2026, 13, 1, 0, 0, 0, 0)
         with self.assertRaises(ProtocolError):
             protocol.build_wired_clock_data(2026, 1, 1, 0, 0, 0, 7)
+
+    def test_clock_data_echo_parsing_is_exact(self):
+        command = protocol.build_wired_clock_data(2026, 8, 12, 22, 23, 0, 3)
+        self.assertTrue(protocol.parse_wired_payload_echo(command, command))
+
+        changed = bytearray(command)
+        changed[7] += 1
+        self.assertFalse(protocol.parse_wired_payload_echo(bytes(changed), command))
+        self.assertFalse(protocol.parse_wired_payload_echo(command[:-1], command))
+        self.assertFalse(protocol.parse_wired_payload_echo(command + b"\x00", command))
+        begin = protocol.build_wired_begin()
+        self.assertFalse(protocol.parse_wired_payload_echo(begin, begin))
+        self.assertFalse(protocol.parse_wired_payload_echo(b"\x00\x01", b"\x00\x01"))
 
     def test_ack_parsing(self):
         begin = protocol.build_wired_begin()

@@ -1,8 +1,12 @@
-# AULA F75 Max — HID wire protocol contract (v1.2)
+# AULA F75 Max — HID wire protocol contract (v1.3)
 
-Status: the wired config endpoint, lighting flow, and normal-layer remap flow are
-verified on Jon's exact `0C45:800A REV_0108` board. Wireless, FN-layer remapping,
-and the features explicitly marked UNKNOWN remain unverified locally. Every
+Status: the wired config endpoint, stock lighting flow, and normal-layer remap
+flow are verified on Jon's exact `0C45:800A REV_0108` board. The 9-page screen
+test-pattern plus Aurora and Focus Core custom-image transfers are verified
+locally, as is the corrected clock transaction. Displayed-pixel correctness,
+restore timing, and direct clock-display observation still await visual proof.
+Wireless, per-key RGB, FN-layer remapping, and features explicitly marked
+UNKNOWN remain unverified locally. Every
 opcode below is traceable to a cited source and the live runs are logged in
 section 11.
 
@@ -36,14 +40,22 @@ source [OSX] wins; conflicts are listed in section 8.
 | 2.4G dongle | 05AC:024F | HID collection usage page **0xFF60**, usage 0x61 — 32-byte **output** reports, input reports for replies | [OSX] main.m `IsDongleEndpoint` + `HIDMatchDictionary(kDongleVendorID, kDongleProductID, 0xff60)`, endpoint check `usagePage == 0xff60 && usage == 0x61` |
 
 Interface-number fallback (only when the HID backend does not expose usage
-pages, e.g. Linux hidraw): wired config = MI_03 (0xFF13 per [VENDOR] registry
-map), wired screen = MI_02 (0xFF68), dongle config = MI_03 (per [VENDOR]
-config.xml binding `VID_05AC&PID_024F&MI_03`).
+pages, e.g. Linux hidraw) is limited to wired config MI_03 and wired screen
+MI_02. Dongle MI_03 alone is not enough identity: live dongle paths require
+the exact 05AC:024F, usage page 0xFF60, usage 0x61 collection.
 
 The wired VID/PID is also used by a related AULA platform. Before opening a
 wired mutation transport, `services/hid` additionally requires the live HID
 product string `AULA F75Max` and release number `0x0108`. Missing or mismatched
-identity fails closed; enumeration alone never authorizes a write.
+identity fails closed; enumeration alone never authorizes a write. Battery,
+lighting, clock, and remap live paths each require exactly one matching config
+candidate. Duplicate candidates fail before a handle opens.
+
+Screen upload has a stricter two-handle boundary: enumeration must contain
+exactly one exact MI_03 control endpoint and exactly one exact MI_02 screen
+endpoint. Duplicates, missing endpoints, wrong interfaces, mismatched product
+or release, and mismatched backend serial/pair tokens fail before either handle
+opens.
 
 Note: the vendor config.xml binds the wired app to `MI_00`, but both public
 implementations independently found that the actual feature-report collection
@@ -65,6 +77,8 @@ time.Millisecond` applied after every SetFeature and GetFeature.
 - 64 bytes on the wire; the collection declares no report ID. With Windows
   HID APIs / hidapi, prepend a 0x00 report-ID byte (65-byte buffer).
   Source: [F108] hid-protocol.md "Packet Format", transport_windows.go.
+- A feature send succeeds only when hidapi returns integer `65`. Boolean,
+  missing, negative, zero, short, and overlong return values are failures.
 - Commands that are marked readback below REQUIRE a GET_REPORT (feature) after
   the SET; without it the firmware ignores subsequent commands. The response
   echoes bytes 0-1 and has byte[3] = 0x01 as ACK. Source: [F108]
@@ -80,6 +94,9 @@ time.Millisecond` applied after every SetFeature and GetFeature.
 ### 3.2 Dongle output reports (usage page 0xFF60)
 
 - 32 bytes on the wire, no report ID (prepend 0x00 for hidapi write()).
+- A dongle output succeeds only when hidapi returns integer `33` for that
+  report-ID-prefixed buffer. The same exact-count rule applies to the LCD pipe:
+  4096-byte page plus report ID must return integer `4097`.
 - Byte 31 is an 8-bit additive checksum: sum of bytes 0..31 with byte 31
   zeroed. Source: [OSX] F75Probe/main.m `applyRawChecksum`.
 - Trailer `AA 55` at offsets 17-18 for command packets that carry parameters.
@@ -179,7 +196,21 @@ unused byte).
 
 Brightness 0-5, speed 0-5 ([VENDOR] `brightness_max`/`speed_max`).
 
-## 6. Additional established commands (implemented as pure builders, untested on hardware)
+### 5.4 Named profiles and per-key safety boundary
+
+`Focus Core` and `Aurora` each have a deployable stock-engine layer and an
+experimental per-key text layer. Focus Core resolves to Static `168BFF`,
+brightness 2; Aurora resolves to Flowing `7D42FF`, brightness 4, colorful.
+Both deploy through the verified section 5.1 transaction.
+
+The per-key compiler uses the exact vendor `light_index` values in
+`data/f75max_layout.json` and emits a deterministic 576-byte data table for
+inspection. Live apply always returns `capture_required`. The only available
+wire reference for per-key init is the F108-only `04 23`; it must not be sent
+to this F75 Max until a live exact-model capture establishes command, framing,
+trailer, and ACK behavior.
+
+## 6. Additional established commands
 
 ### 6.1 Dongle function settings / game mode — [OSX] F75Probe/main.m `buildWirelessKeyResponseReportVariant`, `buildWirelessGameModeReportVariant`
 
@@ -205,8 +236,9 @@ offset 31  checksum
 
 ### 6.2 Wired LCD clock sync — [OSX] AulaF75Bar/main.m (verified working there), [F108] hid-protocol.md "LCD Clock/DateTime Sync"
 
-Sequence: `04 18` (readback) -> `04 28` with byte[8]=0x01 (readback) -> data
-(readback) -> `04 02` (readback). Data payload:
+Sequence: `04 18` (strict status ACK) -> `04 28` with byte[8]=0x01 (strict
+status ACK) -> data (exact 64-byte payload echo) -> `04 02` (strict status
+ACK). Data payload:
 
 ```
 offset 0  0x00
@@ -223,25 +255,57 @@ offset 10 weekday 0=Sunday..6=Saturday
 offset 62-63 trailer AA 55
 ```
 
-### 6.3 Wired screen upload (documented, NOT implemented in services/hid v1)
+The clock-data response is not the generic wired ACK. On Jon's exact board it
+echoes the full `00 01` command payload, so byte 3 is `year - 2000`, not a
+status byte. The client requires exact length and byte-for-byte equality for
+that response; malformed, truncated, extended, or non-echo data is rejected.
+Begin, clock select, and apply continue to require the generic command echo
+plus byte-3 `01` status ACK.
+
+### 6.3 Wired screen upload (test-pattern and custom-image transport verified Jon-local; visual rendering pending)
 
 [OSX] AulaF75Bar/main.m `UploadScreenStream` (verified working there on the
 F75 Max 128x128 screen):
 
-1. Feature `04 18` on 0xFF13.
+1. Feature `04 18` on MI_03/0xFF13; require ACK, then wait 200 ms.
 2. Feature `04 72`, byte[2]=0x01 (image slot), bytes[8-9]=chunk count
-   (uint16 LE) on 0xFF13.
-3. N x 4096-byte output reports on the 0xFF68 collection. Each chunk must be
-   acknowledged by an input report (>= 3 bytes) before the next; 350 ms
-   timeout in [OSX], 300 ms in [F108].
-4. Feature `04 02` on 0xFF13.
+   (uint16 LE) on MI_03; require ACK, then wait 50 ms.
+3. Before each page, drain stale MI_02 input with at most 32 positive 1 ms
+   polls. In hidapi 0.15, timeout 0 means no timeout and is forbidden here.
+   Send exactly one 4096-byte output report on MI_02/0xFF68. Never send a page
+   as a feature report.
+4. Require a fresh MI_02 input report of at least 3 bytes within 350 ms, then
+   wait 5 ms. The Jon-local exact-board prefix is pinned as `01 5A 02`; every
+   page must match it. Normal upload/restore is disabled if the prefix is
+   intentionally unset. Only the explicit live test-pattern flow may learn a
+   prefix in that pre-pin state. Return all observed prefixes as evidence.
+5. After a fully sent begin, success or any later failure waits 100 ms and
+   attempts feature `04 02` plus ACK on MI_03. A begin ACK failure is uncertain:
+   the firmware may be active, so cleanup is attempted. If the begin send
+   itself definitively fails, no `04 02` is sent. Screen upload never sends
+   `04 F0`.
 
 Stream format ([OSX], F75-specific): 256-byte header (byte[0]=frame count,
 bytes[1..N]=per-frame delay, units ~2 ms) + frames of 128x128 RGB565
 little-endian (32768 bytes/frame), zero-padded to a 4096 multiple. The F108
-uses the same structure at 240x135. [VENDOR] `gif_headlength="256"` agrees;
-[VENDOR] left unused header bytes UNKNOWN ([F108] fills 0xFF after delays,
-[OSX] fills 0x00 — see conflict C3).
+uses the same structure at 240x135. [VENDOR] `gif_headlength="256"` agrees.
+PNG, JPEG, GIF, BMP, TIFF, and WebP decode through lazy-loaded Pillow.
+Contain, cover, and stretch fits produce a black-backed 128x128 RGB frame.
+Stills use delay byte 255; animations convert milliseconds to 2 ms units with
+positive half-up rounding and clamp to 1..255. Missing or nonpositive animated
+durations use the exact-source 10 ms fallback, wire byte 5. Frame count is
+1..255. Before any transfer, the client verifies N=1..255, nonzero N delay
+bytes, zero remaining header bytes, exactly `1 + 8*N` pages (maximum 2041),
+and zero tail padding.
+
+Default stock restore does not use the installed `0.gif` because its GIF GCE
+timing is zero/ambiguous. It uses the preserved 251 numbered PNG frames and
+requires an explicit candidate delay. Before discovery, the committed text
+manifest must match the 128x128 dimensions, 251-frame count, source hash,
+prepared-stream hash, 2009-page count, and chosen candidate delay. Byte 10 is
+recorded only as a candidate; DB-to-wire timing has not been established. A
+live restore requires `--allow-unverified-timing`. An explicit source bypasses
+the default manifest; an explicit GIF override is allowed with a warning.
 
 ### 6.4 Wired key remap (`04 11` normal layer / `04 27` FN layer) — implemented in services/hid (remap.py)
 
@@ -333,12 +397,12 @@ F75-unverified fields (honest gaps):
 | `04 F0` | wired feature | finalize | [F108] | yes, normal-layer remap |
 | `04 13` (byte8=01) | wired feature | lighting init | [F108] | yes, 2026-08-10 and 2026-08-12 |
 | lighting data | wired feature | section 5.1 | [F108] | yes, 2026-08-10 and 2026-08-12 |
-| `04 23` | wired feature | per-key RGB init (03=mono, 09=RGB) | [F108] | no — not implemented v1 |
+| `04 23` | wired feature | per-key RGB init (03=mono, 09=RGB) | [F108] | no — live path capture-gated |
 | `04 11` / `04 27` | wired feature | remap normal / FN layer (section 6.4) | [F108] code+doc, verified there | `04 11` yes; `04 27` no |
-| `04 17` + `00 01` | wired feature | function settings (wired) | [F108] | no — not implemented v1 |
-| `04 72` | wired feature | screen upload header | [F108], [OSX] | by [OSX] |
-| `04 28` | wired feature | clock sync init | [F108], [OSX] | by [OSX] |
-| `04 19` / `04 15` | wired feature | macro init / data | [F108] | no — not implemented v1 |
+| `04 17` + `00 01` | wired feature | function settings (wired) | [F108] | no — not implemented |
+| `04 72` | wired feature | screen upload header | [F108], [OSX] | implemented; by [OSX] and Jon-local test-pattern/Aurora/Focus Core transfers |
+| `04 28` | wired feature | clock sync init | [F108], [OSX] | completed Jon-local 2026-08-12; direct display observation pending |
+| `04 19` / `04 15` | wired feature | macro init / data | [F108] | no — not implemented |
 | `20 01` | dongle output | battery request | [OSX] | by [OSX] |
 | `05 10` | dongle output | lighting all-in-one | [OSX], [F108] | by [OSX] |
 | `05 01` | dongle output | legacy sidelight-style mode probe (mode+0x1F) | [OSX] F75Probe | probe only |
@@ -356,8 +420,7 @@ F75-unverified fields (honest gaps):
   [F108] both target the 0xFF13 vendor collection (USB interface 3).
   **Adopted: 0xFF13.**
 - **C3 — screen header filler.** [F108] fills header bytes after the delay
-  table with 0xFF; [OSX] zero-fills. F75-specific source wins if implemented:
-  0x00. (Screen upload not implemented in v1.)
+  table with 0xFF; [OSX] zero-fills. F75-specific source wins: 0x00.
 - **C4 — dongle protocol shape.** [F108] describes the wireless `05 10`
   packet as a 64-byte payload with a leading unused byte; [OSX] sends 32-byte
   reports with a checksum at byte 31. Layouts agree field-for-field after the
@@ -369,8 +432,12 @@ F75-unverified fields (honest gaps):
 - Wired battery query opcode (none exists in any source).
 - Meaning of battery response byte 2 (possibly charging state).
 - Bytes 4-5 of the `04 02` apply response ("may indicate mode/state", [F108]).
-- Per-key RGB `light_index` ordering for the F75's 79-key/108-slot matrix
-  (F108 uses its own 144-slot table; F75 mapping unverified).
+- Exact-F75 per-key RGB wire transaction (`04 23` is F108-only). The F75
+  `light_index` ordering itself is established from the exact vendor XML:
+  80 unique physical keys, indices 1..121 with gaps, in a 144-slot candidate
+  table.
+- Restore frame timing. Candidate wire delay byte 10 comes from the vendor
+  profile database, but its DB-to-wire unit conversion needs live visual proof.
 - Macro storage size / wire format details beyond `04 19`/`04 15` headers.
 - FN-layer `fnlayer_disable` flag values and the wireless remap sender
   (section 6.4 gap list). The normal-layer table length is verified locally.
@@ -381,6 +448,20 @@ F75-unverified fields (honest gaps):
 
 ## 10. Changelog
 
+- **v1.3 (2026-08-12)** — Added exact-pair LCD preparation/upload/restore and
+  clock CLI, screen ACK trace evidence, generated local LCD assets, deployable
+  Focus Core/Aurora stock presets, exact `light_index` data, and a per-key
+  compiler whose live path is capture-gated. Added unique config selectors,
+  malformed-stream rejection, test-pattern-only ACK learning, and manifest-
+  locked restore with explicit unverified-timing consent. Pinned the Jon-local
+  LCD page ACK prefix `01 5A 02` after a successful 9-page live test-pattern.
+  Corrected clock-data readback to require the exact 64-byte `00 01` payload
+  echo observed live while keeping begin/select/apply status ACKs strict.
+  Verified corrected clock sync, two named 9-page custom-image transfers, and
+  both named stock-lighting presets live; Focus Core brightness 2 is final.
+  Hardened all hidapi write boundaries to exact 65/33/4097-byte return counts
+  and stopped LCD apply cleanup after a definite begin-send failure while
+  preserving conservative cleanup after an uncertain begin ACK.
 - **v1.2 (2026-08-12)** — Recorded live normal-layer remap and second lighting
   verification on `0C45:800A REV_0108`; narrowed the remaining remap gaps to
   FN-layer and wireless behavior.
@@ -408,3 +489,46 @@ F75-unverified fields (honest gaps):
   with positive ACKs. `services.hid.cli remap apply` then applied the canonical
   17-key normal-layer table, including collision-free F13-F15/F18-F24 tokens;
   begin, init, apply, and finalize readbacks all acknowledged.
+- 2026-08-12 pre-live review incident: the exact command
+  `.\.venv\Scripts\python.exe -m services.hid.cli light --mode 1 --transport wired`
+  was accidentally run once. It exited 0 and applied Static `FFFFFF`,
+  brightness 5, speed 3. It opened only the wired lighting config path; no LCD,
+  clock, or remap command ran. Focus Core brightness 2 was restored later in
+  the coordinator's controlled live sequence.
+- 2026-08-12 first controlled LCD test-pattern attempt: the transaction blocked
+  before page 1 because stale-input drain called hidapi `read(64, 0)`. In
+  hidapi 0.15, timeout 0 means no timeout, so the shell timed out and left PIDs
+  34212 and 33032 running until the coordinator terminated them. No page output
+  or page ACK was captured, and `SCREEN_ACK_PREFIX` remained unset after that
+  attempt. The client
+  now rejects nonpositive real-transport reads and uses at most 32 one-
+  millisecond stale polls; gate and policy evals cover the failure path.
+- 2026-08-12 controlled LCD retry on the same exact board: all 9 test-pattern
+  pages returned the stable ACK prefix `01 5A 02`. The prepared stream SHA256
+  was `d4e94333d863cdfdd7f08deae09f5eb8b9d0011375150de8a8b5cded89f342bf`,
+  and the watchdog exited 0. `SCREEN_ACK_PREFIX` is pinned to those three bytes;
+  normal upload and restore now require that exact prefix.
+- 2026-08-12 first controlled clock-sync attempt on the same exact board:
+  begin and `04 28` select passed their strict ACK checks. The `00 01` data
+  readback was `00 01 5A 1A 08 0C 16 17 ...`, echoing the sent date/time
+  payload with byte 3 equal to year `0x1A` (2026). The old generic validator
+  falsely required byte 3 to be status `01`, raised `AckError`, and stopped
+  before `04 02` apply. No completed clock sync or visual result is claimed.
+  The client now validates an exact full payload echo only for clock data;
+  malformed/non-echo responses fail closed and the three control ACKs remain
+  strict. A controlled live retry and direct LCD observation were still needed
+  at that point.
+- 2026-08-12 22:28:36, controlled clock retry on the same exact board: the
+  corrected transaction completed through strict `04 02` apply. This verifies
+  the clock-data echo rule and all four transaction steps locally. Direct LCD
+  clock observation is not claimed.
+- 2026-08-12 custom-image and lighting sequence on the same exact board: the
+  first Aurora upload reached final apply, whose readback began `FF`; the client
+  failed closed and did not report success. The Aurora retry then completed all
+  9 pages with prefix `01 5A 02`, stream SHA256
+  `5e9aed91787c759433597eb59c81a5f334143512e2d42129b2f3a0723c92da3f`.
+  Focus Core completed all 9 pages with the same prefix, stream SHA256
+  `283c0a20fc56b9f56d6de1287a2a4097cf2de86d949f9edf659f9179ad5aa622`.
+  These runs verify custom-image transfer and strict final-apply handling, not
+  displayed-pixel correctness. Aurora stock lighting was applied live, followed
+  by Focus Core; Focus Core Static `168BFF`, brightness 2 is the final state.

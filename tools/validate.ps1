@@ -113,8 +113,14 @@ Invoke-Step -Name "hotkeynames.ahk" -Exe $AutoHotkey -Arguments @("`"$hk`"")
 
 # ---------------------------------------------------------------- 4. python
 Write-Head "Python mirror suite"
-$python = "py"
-if (-not (Get-Command $python -ErrorAction SilentlyContinue)) { $python = "python" }
+$venvPython = Join-Path $repo ".venv\Scripts\python.exe"
+if (Test-Path -LiteralPath $venvPython) {
+    $python = $venvPython
+} elseif (Get-Command "py" -ErrorAction SilentlyContinue) {
+    $python = "py"
+} else {
+    $python = "python"
+}
 Push-Location $service
 try {
     Invoke-Step -Name "unittest discover" -Exe $python -Arguments @("-m", "unittest", "discover", "-s", "tests")
