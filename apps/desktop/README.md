@@ -26,5 +26,5 @@ media/combos/macros, host-layer triggers, knob, settings, locks) stays staged
 and is listed as "not connected yet".
 
 Sends are dry runs, showing the exact payloads, unless the app is started with
-`AULA_LIVE_WRITES=1`. `remap reset` is not reachable from the app: it would
+`AULA_LIVE_WRITES=1` (`AULA-live.cmd` does this). `remap reset` is not reachable from the app: it would
 clear the F13-F24 board map.
