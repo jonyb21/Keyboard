@@ -136,15 +136,77 @@ A binding with a `tap` and no `hold` is **tap-only** and fires the instant the
 key goes down, with zero added latency. A binding with both waits `tapHoldMs`
 (default 200) to decide.
 
+### Multi-tap triggers
+
+A binding may carry five triggers, each any action kind in the table above:
+
+| Trigger | Fires when |
+|---|---|
+| `tap` | one press and release (required) |
+| `hold` | the first press is held past `tapHoldMs` |
+| `doubleTap` | two presses, each released, with a gap under `tapWindowMs` |
+| `tripleTap` | three presses likewise |
+| `tapHold` | tap, then press again within `tapWindowMs` and hold past `tapHoldMs` |
+
+```json
+"F20": {
+  "tap": { "send": "Ctrl+C" },
+  "doubleTap": { "send": "Ctrl+V" },
+  "tripleTap": { "send": "Ctrl+A" },
+  "hold": { "send": "Ctrl+X" },
+  "tapHold": { "send": "Ctrl+Shift+V" }
+}
+```
+
+`tapWindowMs` is a top-level setting (default 250, range 50-1000), next to
+`tapHoldMs`. Timing rules:
+
+- A binding **without** `doubleTap`, `tripleTap` and `tapHold` behaves exactly
+  as before: tap-only fires on key-down, tap+hold fires on key-up or at the hold
+  threshold. No latency is added.
+- A binding **with** any of them cannot fire `tap` on key-down. After a release
+  it waits up to `tapWindowMs` for another press. The count is final, and fires,
+  as soon as no further tap is possible (third tap with `tripleTap`, second tap
+  with only `doubleTap`) or when the window closes.
+- A missing slot falls back to `tap`: with `tripleTap` but no `doubleTap`, two
+  taps fire `tap` once. A third quick press after a final count starts a new
+  sequence.
+- `hold` only applies to the first press and `tapHold` only to the second. A long
+  first press with no `hold` is simply a tap.
+
+### Reserved keys
+
+`F16` and `F17` can never be bound, as a binding or as a layer key: the Cidoo V21
+knob runtime owns them globally. The validator refuses them with a clear error.
+
 Two rules the validator enforces and will not let you break:
 
 - **`Ctrl+Alt+Shift+V` can never be bound**, anywhere, in any action or layer
   key. It belongs to InDesign's Paste in Place and a Photoshop-internal tool.
 - **`space` and `capslock` can never be bound**, in bindings or in a layer.
 
+### Config file location
+
+The engine loads, in order:
+
+1. a path passed on the command line (`engine.ahk C:\path\x.json`), if any;
+2. `%APPDATA%\aula-desktop\hostlayer.json`, the file the desktop app writes,
+   when it exists;
+3. `services\hostlayer\layers.json`.
+
+The choice is re-evaluated on every reload, so deleting the app's file falls
+back to `layers.json`. `engine.ahk /validate` with no path checks whichever file
+the engine would load.
+
 ### Reload
 
-`Ctrl+Alt+R` re-reads `layers.json` and re-registers every hotkey without
+The engine polls the config file once a second (path, modified time and size).
+When it changes and stays unchanged for one further poll, it reloads itself, so
+the app only has to write the file; it does not need to send keys. That is a
+latency of one to two seconds, and a half-written file is never read. A broken
+file is reported once in a tray tip and the previous config keeps running.
+
+`Ctrl+Alt+R` re-reads the config at once and re-registers every hotkey without
 restarting the process. It works even while hotkeys are paused. If the new
 config is invalid, the old one keeps running and a tray tip says what was wrong,
 so a typo can never leave you with a dead keyboard.
@@ -157,7 +219,24 @@ The tray menu has **Pause hotkeys**, **Reload config**, and **Exit**.
 
 The knob has no setting in the board's own protocol, so it is remapped here.
 The `encoder` block in `layers.json` maps `left`, `right` and `press` to any
-action kind (`send`, `byApp`, `focusApp`, `layerToggle`, `builtin`, `swallow`):
+action kind (`send`, `byApp`, `focusApp`, `layerToggle`, `builtin`, `swallow`).
+Five more optional slots take the same action kinds:
+
+| Slot | Fires when |
+|---|---|
+| `doublePress`, `triplePress` | the button is pressed twice or three times inside `tapWindowMs` |
+| `hold` | the button is held past `tapHoldMs` |
+| `pressLeft`, `pressRight` | the knob is turned while the button is held down |
+
+Any of these five switches the button into **press mode**: it becomes a tap-hold
+key like the F-row ones (same `tapHoldMs` and `tapWindowMs`), so `press` then
+fires on release or when the window closes instead of at once. With none of them
+present, `press` is the original single-shot remap. If `press` is omitted in
+press mode, a single press sends the stock `Volume_Mute`. A turn while the
+button is held runs `pressLeft` / `pressRight` and cancels that press's own tap
+and hold; turning with no matching slot behaves normally and does not cancel it.
+`pressLeft` / `pressRight` hook their direction even when it is otherwise stock,
+passing the key through unchanged when the button is not down.
 
 ```json
 "encoder": {
@@ -194,6 +273,12 @@ only, so a knob that reported as a mouse wheel would not show up:
 
 If the codes differ, change `HL_EncoderSources()` in `core.ahk` and
 `ENCODER_SOURCES` in `tests/mirror.py`.
+
+Press mode is **unverified on the hardware**. It assumes the knob reports a held
+press as a real key-down and a later key-up. If the board only sends a
+down/up pulse, `doublePress`, `triplePress` and `press` still work, but `hold`,
+`pressLeft` and `pressRight` will never fire. The press is attributed to the
+AULA at key-down by the same time-matching as the turns; the release follows it.
 
 ---
 
@@ -254,7 +339,7 @@ configs, the hotkey-name acceptance test, and the Python suite.
 The split exists so the logic can be tested. AutoHotkey has no test runner and a
 load error opens a modal dialog, so the pure half is mirrored into Python and
 executed there. `core.ahk` and `mirror.py` carry the same step labels
-(`TH-L1`..`TH-L8` for the tap-hold machine, `LR-L1`..`LR-L3` for the layer
+(`TH-L1`..`TH-L12` for the tap-hold machine, `LR-L1`..`LR-L3` for the layer
 resolver) so the two can be diffed side by side. **Change one, change the
 other.**
 
@@ -265,7 +350,10 @@ cd services\hostlayer
 py -m unittest discover -s tests
 ```
 
-139 tests, no network, no device, fake clock, well under a second.
+204 tests, no network, no device, fake clock, well under a second.
+`test_shipped_focus_app_launch_paths_exist_on_disk` fails on a machine where the
+Claude launcher path recorded in `layers.json` does not exist; it is a check of
+the machine, not of the engine.
 
 ### Bugs this design exists to prevent
 

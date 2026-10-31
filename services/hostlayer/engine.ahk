@@ -26,15 +26,21 @@
 
 global gCfg := ""                 ; compiled config
 global gConfigPath := ""
+global gExplicitPath := ""        ; config path given on the command line, wins over auto-resolution
+global gWatch := ""               ; HL_ConfigWatch, polled once a second
+global gPressMachine := ""        ; HL_TapHold for the encoder button, only in press mode
+global gPressAula := false        ; true while the button is down and came from the AULA
 global gMachine := ""             ; HL_TapHold
 global gActiveToggles := Map()    ; layer name -> 1
 global gRegistered := []          ; [{hk, ctx}] so reload can unregister
 global gHkToKey := Map()          ; normalized hotkey name -> canonical key
 global gTimerFns := Map()         ; key -> BoundFunc, stable across arm/cancel
+global gWaitFns := Map()          ; key -> BoundFunc for the multi-tap window timer
 global gAltHeld := false          ; true while altTabBrowse owns the Alt key
 global gMutex := 0
 global gEncDevices := []          ; VID/PID substrings that identify the AULA
 global gEncDevCache := Map()      ; raw input device handle -> 1 if it is the AULA
+global gPressOther := false       ; a non-AULA mute is down while the knob is held
 global gEncLastAula := 0          ; A_TickCount of the last AULA volume-key report
 global gRawOn := false            ; raw input registered for the encoder
 global ENC_WAIT_MS := 30          ; how long a knob key waits for its raw input report
@@ -49,11 +55,28 @@ Main()
 Main() {
     global gConfigPath
     if (A_Args.Length >= 1 && IsValidateFlag(A_Args[1])) {
-        path := (A_Args.Length >= 2 && Trim(A_Args[2]) !== "") ? A_Args[2] : A_ScriptDir "\layers.json"
+        path := (A_Args.Length >= 2 && Trim(A_Args[2]) !== "") ? A_Args[2] : HL_ResolveConfigPath(EnvGet("APPDATA"), A_ScriptDir)
         ExitApp(ValidateMain(path))
     }
-    gConfigPath := (A_Args.Length >= 1 && Trim(A_Args[1]) !== "") ? A_Args[1] : A_ScriptDir "\layers.json"
+    global gExplicitPath
+    gExplicitPath := (A_Args.Length >= 1 && Trim(A_Args[1]) !== "") ? A_Args[1] : ""
+    gConfigPath := CurrentConfigPath()
     RunEngine()
+}
+
+; The machine-written %APPDATA%\aula-desktop\hostlayer.json when it exists,
+; else layers.json next to this script. A path given on the command line wins.
+CurrentConfigPath() {
+    global gExplicitPath
+    return (gExplicitPath !== "") ? gExplicitPath : HL_ResolveConfigPath(EnvGet("APPDATA"), A_ScriptDir)
+}
+
+ConfigSig() {
+    path := CurrentConfigPath()
+    try
+        return path "|" FileGetTime(path, "M") "|" FileGetSize(path)
+    catch
+        return path "|missing"
 }
 
 IsValidateFlag(s) {
@@ -105,17 +128,18 @@ ValidateMain(path) {
     }
     tapOnly := 0
     for k, b in c["bindings"]
-        if (!b["hasHold"])
+        if (!b["hasHold"] && !b["multi"])
             tapOnly += 1
     layerKeyCount := 0
     for k, _ in c["layerKeys"]
         layerKeyCount += 1
     Say("PASS " path)
     Say("  tapHoldMs      " c["tapHoldMs"])
+    Say("  tapWindowMs    " c["tapWindowMs"])
     Say("  bindings       " c["bindings"].Count " (" tapOnly " tap-only)")
     Say("  layers         " c["layers"].Count " (" layerKeyCount " mapped keys)")
     Say("  appGroups      " c["exeIndex"].Count " exe names indexed")
-    Say("  encoder        " c["encoder"]["dirs"].Count " remapped (stock directions register nothing)")
+    Say("  encoder        " c["encoder"]["dirs"].Count " hooked turns, button " (IsObject(c["encoder"]["press"]) ? "in press mode" : "single action") " (stock directions register nothing)")
     return 0
 }
 
@@ -157,6 +181,9 @@ RunEngine() {
     RegisterControlHotkeys()
     BuildTray()
     UpdateTray()
+    global gWatch
+    gWatch := HL_ConfigWatch(ConfigSig())
+    SetTimer(CheckConfigChange, 1000)
     Persistent(true)
 }
 
@@ -223,9 +250,12 @@ RegisterAll(c) {
 ; a filter driver (Interception) - only if this ever bites.
 
 RegisterEncoder(c) {
-    global gRegistered, gEncDevices, gEncDevCache
+    global gRegistered, gEncDevices, gEncDevCache, gPressMachine, gPressAula, gPressOther
     e := c["encoder"]
-    if (e["dirs"].Count == 0)
+    gPressMachine := ""
+    gPressAula := false
+    gPressOther := false
+    if (e["dirs"].Count == 0 && !IsObject(e["press"]))
         return
     gEncDevices := e["devices"]
     gEncDevCache := Map()
@@ -233,6 +263,20 @@ RegisterEncoder(c) {
         hk := "$*" d["hk"]
         Hotkey(hk, MakeEncHandler(d), "On")
         gRegistered.Push(Map("hk", hk, "ctx", ""))
+    }
+    ; Press mode: the button is a tap-hold key of its own. Both edges are hooked
+    ; so double/triple presses, hold and turn-while-held can be told apart.
+    ; shortcut: assumes the knob reports a held press as a real key-down and
+    ; key-up. If it only pulses, hold/pressLeft/pressRight never fire (taps and
+    ; double/triple presses still work); check with encoder-probe.ahk.
+    if (IsObject(e["press"])) {
+        gPressMachine := HL_TapHold(Map("tapHoldMs", c["tapHoldMs"], "tapWindowMs", c["tapWindowMs"], "bindings", Map("press", e["press"]["entry"])))
+        hk := "$*" e["press"]["hk"]
+        Hotkey(hk, MakeEncPressHandler(true), "On")
+        gRegistered.Push(Map("hk", hk, "ctx", ""))
+        hku := hk " up"
+        Hotkey(hku, MakeEncPressHandler(false), "On")
+        gRegistered.Push(Map("hk", hku, "ctx", ""))
     }
     ; Without raw input nothing ever matches the AULA, so remapped directions
     ; just pass their key through. That is the safe failure; keep the engine up.
@@ -247,12 +291,55 @@ MakeEncHandler(d) {
     return (*) => SetTimer(EncDecide.Bind(d, A_TickCount), -ENC_WAIT_MS)
 }
 
+MakeEncPressHandler(isDown) {
+    return (*) => SetTimer(EncPressDecide.Bind(isDown, A_TickCount), -ENC_WAIT_MS)
+}
+
 EncDecide(d, tick) {
-    global gEncLastAula
-    if (Abs(gEncLastAula - tick) <= ENC_MATCH_MS)
+    global gEncLastAula, gPressMachine
+    if (Abs(gEncLastAula - tick) > ENC_MATCH_MS) {
+        Send(d["src"])
+        return
+    }
+    ; Turn while the button is held: the press belongs to the turn, so it
+    ; neither taps nor holds on release.
+    if (IsObject(d["pressAction"]) && IsObject(gPressMachine) && gPressMachine.IsDown("press")) {
+        ExecEvents(gPressMachine.Consume("press"))
+        DoAction(d["pressAction"])
+        return
+    }
+    if (IsObject(d["action"]))
         DoAction(d["action"])
     else
         Send(d["src"])
+}
+
+; Both edges wait ENC_WAIT_MS and run in order, so a fast press/release pulse
+; is decided in sequence. Only the key-down is attributed to a device; the
+; release follows whichever device the press came from.
+EncPressDecide(isDown, tick) {
+    global gEncLastAula, gPressMachine, gPressAula, gPressOther
+    if (!IsObject(gPressMachine))
+        return
+    if (isDown) {
+        if (Abs(gEncLastAula - tick) > ENC_MATCH_MS) {
+            ; another device's key, even while the knob is held; its release is not the knob's
+            gPressOther := gPressAula
+            Send("{Volume_Mute}")
+            return
+        }
+        if (gPressAula) {
+            ExecEvents(gPressMachine.OnDown("press", A_TickCount))   ; autorepeat of a held press
+            return
+        }
+        gPressAula := true
+        ExecEvents(gPressMachine.OnDown("press", A_TickCount))
+    } else if (gPressOther) {
+        gPressOther := false
+    } else if (gPressAula) {
+        gPressAula := false
+        ExecEvents(gPressMachine.OnUp("press", A_TickCount))
+    }
 }
 
 ; Keyboard (1/6) and consumer control (0x0C/1) reports, delivered even while
@@ -393,8 +480,27 @@ OnKeyUp(key) {
 }
 
 OnHoldTimer(key) {
-    global gMachine
-    ExecEvents(gMachine.OnHoldTimer(key, A_TickCount))
+    global gMachine, gPressMachine
+    ; The encoder button's machine has its own binding named "press".
+    if (key == "press" && IsObject(gPressMachine))
+        ExecEvents(gPressMachine.OnHoldTimer(key, A_TickCount))
+    else
+        ExecEvents(gMachine.OnHoldTimer(key, A_TickCount))
+}
+
+OnWaitTimer(key) {
+    global gMachine, gPressMachine
+    if (key == "press" && IsObject(gPressMachine))
+        ExecEvents(gPressMachine.OnWaitTimer(key, A_TickCount))
+    else
+        ExecEvents(gMachine.OnWaitTimer(key, A_TickCount))
+}
+
+WaitFn(key) {
+    global gWaitFns
+    if (!gWaitFns.Has(key))
+        gWaitFns[key] := OnWaitTimer.Bind(key)
+    return gWaitFns[key]
 }
 
 TimerFn(key) {
@@ -407,7 +513,11 @@ TimerFn(key) {
 ExecEvents(evs) {
     for _, ev in evs {
         t := ev["type"]
-        if (t == "armTimer")
+        if (t == "armWait")
+            SetTimer(WaitFn(ev["key"]), -ev["ms"])
+        else if (t == "cancelWait")
+            SetTimer(WaitFn(ev["key"]), 0)
+        else if (t == "armTimer")
             SetTimer(TimerFn(ev["key"]), -ev["ms"])
         else if (t == "cancelTimer")
             SetTimer(TimerFn(ev["key"]), 0)
@@ -571,11 +681,15 @@ BuildTray() {
 }
 
 TogglePause(*) {
-    global gMachine
+    global gMachine, gPressMachine, gPressAula, gPressOther
     Suspend(-1)
     ; Suspending mid-hold would strand Alt down and reset nothing.
     ReleaseHeld()
     gMachine.Reset()
+    if (IsObject(gPressMachine))
+        gPressMachine.Reset()
+    gPressOther := false
+    gPressAula := false   ; the release may land while suspended and never arrive
     UpdateTray()
 }
 
@@ -583,8 +697,19 @@ ExitEngine(*) {
     ExitApp(0)
 }
 
+; Polled once a second. The app rewrites hostlayer.json instead of sending
+; Ctrl+Alt+R; HL_ConfigWatch waits for the file to stop changing first.
+CheckConfigChange() {
+    global gWatch
+    if (gWatch.Step(ConfigSig()))
+        ReloadConfig()
+}
+
 ReloadConfig(*) {
-    global gCfg, gMachine, gConfigPath, gHkToKey, gTimerFns, gActiveToggles
+    global gCfg, gMachine, gConfigPath, gHkToKey, gTimerFns, gWaitFns, gActiveToggles, gWatch
+    gConfigPath := CurrentConfigPath()
+    ; Mark first: a broken file is reported once, not once a second.
+    gWatch.Mark(ConfigSig())
     try {
         nc := HL_LoadConfigFile(gConfigPath)
     } catch as e {
@@ -599,6 +724,7 @@ ReloadConfig(*) {
     gCfg := nc
     gMachine := HL_TapHold(nc)
     gTimerFns := Map()
+    gWaitFns := Map()
     gHkToKey := Map()
     gActiveToggles := Map()
     RegisterAll(nc)

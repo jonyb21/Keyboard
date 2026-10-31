@@ -238,8 +238,8 @@ class TestSchemaRejections(unittest.TestCase):
 
     def test_unknown_binding_key_rejected(self):
         cfg = base_cfg()
-        cfg["bindings"]["F13"]["doubleTap"] = {"send": "Ctrl+X"}
-        self.assertRejects(cfg, "unknown key 'doubleTap'")
+        cfg["bindings"]["F13"]["tripleHold"] = {"send": "Ctrl+X"}
+        self.assertRejects(cfg, "unknown key 'tripleHold'")
 
     def test_unknown_action_key_rejected(self):
         cfg = base_cfg()
@@ -577,9 +577,10 @@ class TestEncoder(unittest.TestCase):
         self.assertEqual("{Media_Play_Pause}", d["press"]["action"]["send"])
         self.assertEqual("Volume_Up", d["right"]["hk"])
 
-    def test_example_remaps_only_press(self):
+    def test_example_hooks_turns_for_press_turn_actions(self):
+        # pressLeft/pressRight hook both turn directions; the button runs in press mode.
         c = mirror.load_config_file(mirror.LAYERS_EXAMPLE_JSON)
-        self.assertEqual({"press"}, set(c["encoder"]["dirs"]))
+        self.assertEqual({"left", "right"}, set(c["encoder"]["dirs"]))
 
     def test_modified_source_counts_as_a_remap(self):
         c = mirror.load_config_obj(enc_cfg(right={"send": "Shift+Volume_Up"}))

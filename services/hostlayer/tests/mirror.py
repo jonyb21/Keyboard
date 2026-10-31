@@ -42,11 +42,23 @@ PROTECTED_KEYS = {
     "capslock": "CapsLock must stay stock",
 }
 
+# core.ahk: HL_ReservedKeys. The Cidoo V21 knob runtime owns F16/F17 globally.
+RESERVED_KEYS = {
+    "f16": "F16 is owned globally by the Cidoo V21 knob runtime",
+    "f17": "F17 is owned globally by the Cidoo V21 knob runtime",
+}
+
 BUILTINS = {"altTabTap", "altTabBrowse"}
 
 # core.ahk: HL_EncoderSources
 ENCODER_SOURCES = {"left": "volume_down", "right": "volume_up", "press": "volume_mute"}
-ENCODER_DIRS = ["left", "right", "press"]
+# core.ahk: HL_EncoderTriggers
+ENCODER_DIRS = ["left", "right"]
+ENCODER_TRIGGERS = [
+    "left", "right", "press", "doublePress", "triplePress", "hold",
+    "pressLeft", "pressRight",
+]
+ENCODER_PRESS_MODE = ["doublePress", "triplePress", "hold", "pressLeft", "pressRight"]
 
 
 def _build_key_send():
@@ -358,6 +370,7 @@ ROOT_ALLOWED = [
     "schemaVersion",
     "description",
     "tapHoldMs",
+    "tapWindowMs",
     "appGroups",
     "bindings",
     "layers",
@@ -383,6 +396,13 @@ def validate_config(cfg):
             errs.append("root.tapHoldMs: must be an integer number of milliseconds")
         elif t < 50 or t > 1000:
             errs.append("root.tapHoldMs: must be between 50 and 1000 (got %s)" % t)
+
+    if "tapWindowMs" in cfg:
+        t = cfg["tapWindowMs"]
+        if not isinstance(t, int) or isinstance(t, bool):
+            errs.append("root.tapWindowMs: must be an integer number of milliseconds")
+        elif t < 50 or t > 1000:
+            errs.append("root.tapWindowMs: must be between 50 and 1000 (got %s)" % t)
 
     # ---- appGroups -------------------------------------------------------
     seen_exe = {}
@@ -439,6 +459,12 @@ def validate_config(cfg):
                         % (ln, k, PROTECTED_KEYS[kl])
                     )
                     continue
+                if kl in RESERVED_KEYS:
+                    errs.append(
+                        "layers.%s.keys: '%s' is reserved -- %s"
+                        % (ln, k, RESERVED_KEYS[kl])
+                    )
+                    continue
                 if kl not in KEY_HOTKEY:
                     errs.append(
                         "layers.%s.keys: '%s' is not a bindable physical key name"
@@ -467,18 +493,23 @@ def validate_config(cfg):
             kl = k.lower()
             if kl in PROTECTED_KEYS:
                 errs.append("%s: '%s' is protected -- %s" % (where, k, PROTECTED_KEYS[kl]))
+            elif kl in RESERVED_KEYS:
+                errs.append("%s: '%s' is reserved -- %s" % (where, k, RESERVED_KEYS[kl]))
             elif kl not in KEY_HOTKEY:
                 errs.append("%s: '%s' is not a bindable physical key name" % (where, k))
             if not isinstance(B, dict):
                 errs.append("%s: must be an object" % where)
                 continue
-            _check_unknown_keys(B, ["note", "tap", "hold"], where, errs)
+            _check_unknown_keys(
+                B, ["note", "tap", "hold", "doubleTap", "tripleTap", "tapHold"], where, errs
+            )
             if "tap" not in B:
                 errs.append("%s.tap: required" % where)
             else:
                 validate_action(B["tap"], where + ".tap", cfg, errs)
-            if "hold" in B:
-                validate_action(B["hold"], where + ".hold", cfg, errs)
+            for trig in ("hold", "doubleTap", "tripleTap", "tapHold"):
+                if trig in B:
+                    validate_action(B[trig], where + "." + trig, cfg, errs)
 
     # ---- encoder ----
     if "encoder" in cfg:
@@ -486,7 +517,7 @@ def validate_config(cfg):
         if not isinstance(E, dict):
             errs.append("root.encoder: must be an object")
         else:
-            _check_unknown_keys(E, ["note", "devices"] + ENCODER_DIRS, "encoder", errs)
+            _check_unknown_keys(E, ["note", "devices"] + ENCODER_TRIGGERS, "encoder", errs)
             devs = E.get("devices")
             if not isinstance(devs, list) or not devs:
                 errs.append("encoder.devices: required, a non-empty array like VID_0C45&PID_800A")
@@ -494,7 +525,7 @@ def validate_config(cfg):
                 for d in devs:
                     if not isinstance(d, str) or not re.match(r"(?i)^VID_[0-9A-F]{4}&PID_[0-9A-F]{4}$", d):
                         errs.append("encoder.devices: every entry must look like VID_0C45&PID_800A")
-            for d in ENCODER_DIRS:
+            for d in ENCODER_TRIGGERS:
                 if d in E:
                     validate_action(E[d], "encoder." + d, cfg, errs)
 
@@ -534,9 +565,26 @@ def compile_action(a):
     return out
 
 
+def compile_opt(m, name):
+    """core.ahk: HL_CompileOpt"""
+    return compile_action(m[name]) if name in m else ""
+
+
+def fill_triggers(entry, tap, hold, dbl, trp, th, force_multi):
+    """core.ahk: HL_FillTriggers"""
+    entry["tap"] = tap
+    entry["hasHold"] = 1 if hold != "" else 0
+    entry["hold"] = hold
+    entry["doubleTap"] = dbl
+    entry["tripleTap"] = trp
+    entry["tapHold"] = th
+    entry["multi"] = 1 if (force_multi or dbl != "" or trp != "" or th != "") else 0
+    entry["maxTaps"] = 3 if trp != "" else (2 if dbl != "" else 1)
+
+
 def compile_config(cfg):
     """core.ahk: HL_CompileConfig"""
-    c = {"tapHoldMs": cfg["tapHoldMs"]}
+    c = {"tapHoldMs": cfg["tapHoldMs"], "tapWindowMs": cfg.get("tapWindowMs", 250)}
 
     exe_index = {}
     for g, lst in cfg.get("appGroups", {}).items():
@@ -556,14 +604,18 @@ def compile_config(cfg):
 
     bindings = {}
     for k, src in cfg["bindings"].items():
-        bindings[k.lower()] = {
-            "key": k,
-            "hk": KEY_HOTKEY[k.lower()],
-            "tap": compile_action(src["tap"]),
-            "hasHold": 1 if "hold" in src else 0,
-            "hold": compile_action(src["hold"]) if "hold" in src else "",
-            "note": src.get("note", ""),
-        }
+        entry = {"key": k, "hk": KEY_HOTKEY[k.lower()]}
+        fill_triggers(
+            entry,
+            compile_action(src["tap"]),
+            compile_opt(src, "hold"),
+            compile_opt(src, "doubleTap"),
+            compile_opt(src, "tripleTap"),
+            compile_opt(src, "tapHold"),
+            False,
+        )
+        entry["note"] = src.get("note", "")
+        bindings[k.lower()] = entry
     c["bindings"] = bindings
 
     layer_keys = {}
@@ -575,16 +627,35 @@ def compile_config(cfg):
     c["toggleLayers"] = sorted(layers.keys())
 
     enc = {}
+    press = ""
     E = cfg.get("encoder", {})
-    for d in ENCODER_DIRS:
-        if d not in E:
+    press_mode = any(t in E for t in ENCODER_PRESS_MODE)
+    for d in ["left", "right", "press"]:
+        if d == "press" and press_mode:
             continue
         src = ENCODER_SOURCES[d]
-        act = compile_action(E[d])
-        if act["kind"] == "send" and act["send"] == KEY_SEND[src]:
+        act = compile_action(E[d]) if d in E else ""
+        stock = act == "" or (act["kind"] == "send" and act["send"] == KEY_SEND[src])
+        p_name = {"left": "pressLeft", "right": "pressRight"}.get(d)
+        p_act = compile_action(E[p_name]) if p_name and p_name in E else ""
+        if stock and p_act == "":
             continue
-        enc[d] = {"hk": KEY_SEND[src][1:-1], "src": KEY_SEND[src], "action": act}
-    c["encoder"] = {"devices": E.get("devices", []), "dirs": enc}
+        enc[d] = {
+            "hk": KEY_SEND[src][1:-1],
+            "src": KEY_SEND[src],
+            "action": "" if stock else act,
+            "pressAction": p_act,
+        }
+    if press_mode:
+        src = ENCODER_SOURCES["press"]
+        tap = compile_action(E["press"]) if "press" in E else compile_action({"send": "Volume_Mute"})
+        ent = {"key": "press", "hk": KEY_SEND[src][1:-1]}
+        fill_triggers(
+            ent, tap, compile_opt(E, "hold"), compile_opt(E, "doublePress"),
+            compile_opt(E, "triplePress"), "", True,
+        )
+        press = {"hk": KEY_SEND[src][1:-1], "src": KEY_SEND[src], "entry": ent}
+    c["encoder"] = {"devices": E.get("devices", []), "dirs": enc, "press": press}
     return c
 
 
@@ -633,13 +704,18 @@ def resolve_app(action, active_exe, exe_index):
 
 
 class TapHold:
-    """core.ahk: HL_TapHold. Step labels match one for one."""
+    """core.ahk: HL_TapHold. Step labels match one for one.
+
+    Phases: idle, pending, held, downfired, waiting (multi-tap window open),
+    consumed (a turn-while-held used this press)."""
 
     def __init__(self, compiled):
         self.cfg = compiled
         self.tapHoldMs = compiled["tapHoldMs"]
+        self.tapWindowMs = compiled.get("tapWindowMs", 250)
         self.state = {
-            k: {"phase": "idle", "downAt": 0} for k in compiled["bindings"]
+            k: {"phase": "idle", "downAt": 0, "count": 0, "holdAction": ""}
+            for k in compiled["bindings"]
         }
 
     def phase(self, key):
@@ -649,6 +725,8 @@ class TapHold:
         for st in self.state.values():
             st["phase"] = "idle"
             st["downAt"] = 0
+            st["count"] = 0
+            st["holdAction"] = ""
 
     @staticmethod
     def _is_browse(action):
@@ -658,8 +736,60 @@ class TapHold:
             and action.get("builtin") == "altTabBrowse"
         )
 
+    @staticmethod
+    def _hold_for(b, n):
+        """The hold action press number n (1-based) can become, or ""."""
+        if n == 1:
+            return b["hold"]
+        if n == 2:
+            return b["tapHold"]
+        return ""
+
+    @staticmethod
+    def _tap_for(b, n):
+        """The action for n completed taps. A missing doubleTap falls back to tap."""
+        if n >= 3 and b["tripleTap"] != "":
+            return b["tripleTap"]
+        if n >= 2 and b["doubleTap"] != "":
+            return b["doubleTap"]
+        return b["tap"]
+
+    @staticmethod
+    def _tap_phase(b, n):
+        if n >= 3 and b["tripleTap"] != "":
+            return "tripleTap"
+        if n >= 2 and b["doubleTap"] != "":
+            return "doubleTap"
+        return "tap"
+
+    @staticmethod
+    def _wait_more(b, n):
+        """After n taps, can another tap or a tap-then-hold still follow?"""
+        return n < b["maxTaps"] or (n == 1 and b["tapHold"] != "")
+
+    def is_down(self, key):
+        return self.state[key.lower()]["phase"] in (
+            "pending", "held", "consumed", "downfired"
+        )
+
+    def consume(self, key):
+        """core.ahk: HL_TapHold.Consume, TH-L9"""
+        key = key.lower()
+        ev = []
+        st = self.state[key]
+        if st["phase"] == "pending":
+            ev.append({"type": "cancelTimer", "key": key})
+        elif st["phase"] == "held":
+            if self._is_browse(st["holdAction"]):
+                ev.append({"type": "builtin", "name": "altTabBrowse", "phase": "end"})
+        else:
+            return ev
+        st["phase"] = "consumed"
+        st["count"] = 0
+        return ev
+
     def on_down(self, key, now):
-        """core.ahk: HL_TapHold.OnDown, TH-L1 .. TH-L4"""
+        """core.ahk: HL_TapHold.OnDown, TH-L1 .. TH-L4, TH-L10"""
         key = key.lower()
         ev = []
         b = self.cfg["bindings"][key]
@@ -668,30 +798,42 @@ class TapHold:
         # TH-L1  Already resolved as a hold. The only thing a further key-down
         #        may do is advance a hold-to-browse switcher. Never re-fire tap.
         if st["phase"] == "held":
-            if self._is_browse(b["hold"]):
+            if self._is_browse(st["holdAction"]):
                 ev.append(
                     {"type": "builtin", "name": "altTabBrowse", "phase": "repeat"}
                 )
             return ev
 
-        # TH-L2  Autorepeat arriving while still undecided, or after a tap-only
-        #        key already fired. Swallow it: correctness rule 2, no
-        #        autorepeat of the tap action.
-        if st["phase"] in ("pending", "downfired"):
+        # TH-L2  Autorepeat arriving while still undecided, after a tap-only
+        #        key already fired, or after a turn consumed the press. Swallow
+        #        it: correctness rule 2, no autorepeat of the tap action.
+        if st["phase"] in ("pending", "downfired", "consumed"):
+            return ev
+
+        # TH-L10 A new press inside the tap window: the pending single/double
+        #        tap is not final yet, so stop the window timer and count on.
+        if st["phase"] == "waiting":
+            ev.append({"type": "cancelWait", "key": key})
+            st["downAt"] = now
+            st["phase"] = "pending"
+            if self._hold_for(b, st["count"] + 1) != "":
+                ev.append({"type": "armTimer", "key": key, "ms": self.tapHoldMs})
             return ev
 
         # TH-L3  Fresh press of a tap-only key: fire immediately on key-down,
         #        no discrimination delay at all.
         st["downAt"] = now
-        if not b["hasHold"]:
+        st["count"] = 0
+        if not b["hasHold"] and not b["multi"]:
             st["phase"] = "downfired"
             ev.append({"type": "action", "action": b["tap"], "phase": "tap"})
             return ev
 
         # TH-L4  Fresh press of a tap-hold key: nothing is emitted yet, arm the
-        #        discriminator.
+        #        discriminator (only if a hold is possible for this press).
         st["phase"] = "pending"
-        ev.append({"type": "armTimer", "key": key, "ms": self.tapHoldMs})
+        if self._hold_for(b, 1) != "":
+            ev.append({"type": "armTimer", "key": key, "ms": self.tapHoldMs})
         return ev
 
     def on_hold_timer(self, key, now):
@@ -706,16 +848,21 @@ class TapHold:
         if st["phase"] != "pending":
             return ev
 
-        # TH-L6  Threshold crossed: the hold fires exactly once.
+        # TH-L6  Threshold crossed: the hold fires exactly once. The hold is
+        #        tapHold when this is the second press of a tap-then-hold.
         st["phase"] = "held"
-        if self._is_browse(b["hold"]):
+        h = self._hold_for(b, st["count"] + 1)
+        st["holdAction"] = h
+        ph = "hold" if st["count"] == 0 else "tapHold"
+        st["count"] = 0
+        if self._is_browse(h):
             ev.append({"type": "builtin", "name": "altTabBrowse", "phase": "start"})
         else:
-            ev.append({"type": "action", "action": b["hold"], "phase": "hold"})
+            ev.append({"type": "action", "action": h, "phase": ph})
         return ev
 
     def on_up(self, key, now):
-        """core.ahk: HL_TapHold.OnUp, TH-L7 .. TH-L8"""
+        """core.ahk: HL_TapHold.OnUp, TH-L7 .. TH-L8, TH-L11"""
         key = key.lower()
         ev = []
         b = self.cfg["bindings"][key]
@@ -725,14 +872,90 @@ class TapHold:
         #        timer first so the hold can never also fire.
         if st["phase"] == "pending":
             ev.append({"type": "cancelTimer", "key": key})
-            ev.append({"type": "action", "action": b["tap"], "phase": "tap"})
+            if not b["multi"]:
+                ev.append({"type": "action", "action": b["tap"], "phase": "tap"})
+            else:
+                # TH-L11 Multi-tap: count it. If another tap can still follow,
+                #        open the window; otherwise this tap count is final.
+                n = st["count"] + 1
+                if self._wait_more(b, n):
+                    st["count"] = n
+                    st["phase"] = "waiting"
+                    ev.append({"type": "armWait", "key": key, "ms": self.tapWindowMs})
+                    return ev
+                ev.append(
+                    {
+                        "type": "action",
+                        "action": self._tap_for(b, n),
+                        "phase": self._tap_phase(b, n),
+                    }
+                )
         elif st["phase"] == "held":
             # TH-L8  Hold already fired. Only a browse-style hold has a release
             #        phase (it must let go of Alt to commit the selection).
-            if self._is_browse(b["hold"]):
+            if self._is_browse(st["holdAction"]):
                 ev.append({"type": "builtin", "name": "altTabBrowse", "phase": "end"})
         st["phase"] = "idle"
+        st["count"] = 0
+        st["holdAction"] = ""
         return ev
+
+    def on_wait_timer(self, key, now):
+        """core.ahk: HL_TapHold.OnWaitTimer, TH-L12"""
+        key = key.lower()
+        ev = []
+        b = self.cfg["bindings"][key]
+        st = self.state[key]
+        if st["phase"] != "waiting":
+            return ev
+        n = st["count"]
+        st["phase"] = "idle"
+        st["count"] = 0
+        ev.append(
+            {
+                "type": "action",
+                "action": self._tap_for(b, n),
+                "phase": self._tap_phase(b, n),
+            }
+        )
+        return ev
+
+
+# ---------------------------------------------------------------------------
+# Config path + change watching  (core.ahk: HL_ResolveConfigPath / HL_ConfigWatch)
+# ---------------------------------------------------------------------------
+
+
+def resolve_config_path(app_data, script_dir, exists=os.path.isfile):
+    """core.ahk: HL_ResolveConfigPath. The app-written file wins when present."""
+    if app_data:
+        p = app_data + "\\aula-desktop\\hostlayer.json"
+        if exists(p):
+            return p
+    return script_dir + "\\layers.json"
+
+
+class ConfigWatch:
+    """core.ahk: HL_ConfigWatch. A change must be seen on two consecutive polls
+    before step() returns True, so a half-written file is never read."""
+
+    def __init__(self, sig):
+        self.applied = sig
+        self.seen = sig
+
+    def mark(self, sig):
+        self.applied = sig
+        self.seen = sig
+
+    def step(self, sig):
+        if sig == self.applied:
+            self.seen = sig
+            return False
+        if sig == self.seen:
+            self.applied = sig
+            return True
+        self.seen = sig
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -800,7 +1023,10 @@ class FakeEngine:
 
     # -- clock ----------------------------------------------------------
     def advance(self, ms):
-        """Move the clock, firing any timer that comes due on the way."""
+        """Move the clock, firing any timer that comes due on the way.
+
+        Timers are keyed by key for the tap-hold discriminator and "wait:"+key
+        for the multi-tap window, like TimerFn/WaitFn in engine.ahk."""
         target = self.now + ms
         while True:
             due = [(t, k) for k, t in self.timers.items() if t <= target]
@@ -810,7 +1036,10 @@ class FakeEngine:
             t, k = due[0]
             del self.timers[k]
             self.now = t
-            self._exec(self.machine.on_hold_timer(k, self.now))
+            if k.startswith("wait:"):
+                self._exec(self.machine.on_wait_timer(k[5:], self.now))
+            else:
+                self._exec(self.machine.on_hold_timer(k, self.now))
         self.now = target
 
     # -- input ----------------------------------------------------------
@@ -833,6 +1062,10 @@ class FakeEngine:
                 self.timers[ev["key"]] = self.now + ev["ms"]
             elif t == "cancelTimer":
                 self.timers.pop(ev["key"], None)
+            elif t == "armWait":
+                self.timers["wait:" + ev["key"]] = self.now + ev["ms"]
+            elif t == "cancelWait":
+                self.timers.pop("wait:" + ev["key"], None)
             elif t == "builtin":
                 self._builtin(ev["name"], ev["phase"])
             elif t == "action":

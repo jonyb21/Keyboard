@@ -85,9 +85,86 @@ function macroPlan(ops, warn, onSent) {
   onSent.push(() => { wr.macros = clone(list); });
 }
 
+// Host layer (services/hostlayer): triggers on keys the firmware maps to F13-F24, and the knob. Sent as one full config.
+const HOST_KEY = { esc: 'esc', enter: 'enter', tab: 'tab', space: 'space', bksp: 'backspace', del: 'delete', insert: 'insert', up: 'up', down: 'down', left: 'left', right: 'right', home: 'home', end: 'end', pgup: 'pgup', pgdn: 'pgdn', ',': 'comma', '.': 'period', ';': 'semicolon', '/': 'slash', '-': 'minus', '=': 'equals', "'": 'quote', '[': 'lbracket', ']': 'rbracket', '\\': 'backslash', printscreen: 'printscreen', menu: 'appskey' };
+const HOST_MEDIA = { Mute: 'Volume_Mute', 'Volume down': 'Volume_Down', 'Volume up': 'Volume_Up', 'Play/Pause': 'Media_Play_Pause', 'Next track': 'Media_Next', 'Previous track': 'Media_Prev', Stop: 'Media_Stop' };
+const HOST_SYSTEM = { Undo: 'Ctrl+Z', Redo: 'Ctrl+Y', 'Show desktop': 'Win+D', 'Task view': 'Win+Tab', 'Lock PC': 'Win+L', 'Zoom in': 'Ctrl+equals', 'Zoom out': 'Ctrl+minus' };
+const HOST_TRIG = { double: 'doubleTap', triple: 'tripleTap', hold: 'hold', taphold: 'tapHold' };
+const HOST_ENC = { left: 'left', right: 'right', press: 'press', press2: 'doublePress', press3: 'triplePress', hold: 'hold', pleft: 'pressLeft', pright: 'pressRight' };
+const HOST_DEVICES = ['VID_0C45&PID_800A', 'VID_05AC&PID_024F'];
+const HOST_FCODE = /^F(1[3-5]|1[89]|2[0-4])$/;   // F16/F17 are owned by the Cidoo knob runtime
+
+function hostKeyName(t) {
+  t = t.trim();
+  if (/^[a-z0-9]$/i.test(t)) return t.toLowerCase();
+  if (/^F([1-9]|1\d|2[0-4])$/i.test(t) && !/^F1[67]$/i.test(t)) return t.toLowerCase();
+  return HOST_KEY[t.toLowerCase()] || null;
+}
+// UI value -> engine action, or a reason string.
+function hostAction(v) {
+  if (v === 'Disabled') return { a: { swallow: true } };
+  if (HOST_MEDIA[v]) return { a: { send: HOST_MEDIA[v] } };
+  if (HOST_SYSTEM[v]) return { a: { send: HOST_SYSTEM[v] } };
+  if (MOUSE_SEND[v]) return { why: 'the host layer cannot click the mouse' };
+  if (/^Macro: /.test(v)) return { why: 'macros run on the keyboard, not the host layer' };
+  if (/^AHK: /.test(v)) return { why: 'the host layer has no raw AutoHotkey action' };
+  if (v === 'Action ring') return { why: 'the action ring is not supported by the host layer' };
+  if (SYSTEM.includes(v)) return { why: 'the host layer has no equivalent for ' + v };
+  const o = /^Open: (.*)$/.exec(v);
+  if (o) {
+    const p = o[1].trim(), exe = p.split(/[\\/]/).pop();
+    if (!/\.exe$/i.test(exe)) return { why: 'Open needs a path ending in .exe' };
+    return { a: { focusApp: { exe, launch: /^([a-z]:[\\/]|\\\\)/i.test(p) ? p : '' } } };
+  }
+  const t = v.split('+').map(x => x.trim()), key = hostKeyName(t.pop());
+  if (key === 'v' && ['ctrl', 'alt', 'shift'].every(m => t.some(x => x.toLowerCase() === m)) && !t.some(x => x.toLowerCase() === 'win')) return { why: 'Ctrl+Alt+Shift+V is reserved for InDesign Paste in Place' };
+  return key && t.every(m => ['ctrl', 'shift', 'alt', 'win'].includes(m.toLowerCase())) ? { a: { send: t.concat(key).join('+') } } : { why: 'the host layer cannot send ' + v };
+}
+
+function hostPlan(ops, skipped, onSent, warn) {
+  const cfg = { schemaVersion: 1, tapHoldMs: Math.min(1000, Math.max(50, st.timing.hold)), tapWindowMs: Math.min(1000, Math.max(50, st.timing.tap)), bindings: {}, layers: {} };
+  if (cfg.tapHoldMs !== st.timing.hold) warn.push('Hold after is limited to 1000 ms by the host layer.');
+  const bad = new Set(), claimed = {};
+  ['normal', 'fn'].forEach(L => Object.keys(st.trig[L]).forEach(k => {
+    const code = st.layers[L][k], tr = st.trig[L][k];
+    const no = why => Object.keys(tr).forEach(t => { bad.add(L + '|' + k + '|' + t); skipped.push((L === 'fn' ? 'Fn layer: ' : '') + k + ' ' + t + ' (' + why + ')'); });
+    if (!HOST_FCODE.test(code || '')) return no(k === 'Fn' || !posName(k) ? 'this key cannot be remapped' : 'map this key to an F13-F24 code first');
+    if (claimed[code]) return no(code + ' is already used by ' + claimed[code]);
+    const b = { tap: { swallow: true } };
+    Object.keys(tr).forEach(t => {
+      const r = hostAction(tr[t]);
+      if (r.a) b[HOST_TRIG[t]] = r.a; else { bad.add(L + '|' + k + '|' + t); skipped.push(k + ' ' + t + ' sends ' + tr[t] + ' (' + r.why + ')'); }
+    });
+    if (Object.keys(b).length > 1) { cfg.bindings[code] = b; claimed[code] = k; }
+  }));
+  const E = { devices: HOST_DEVICES }, badEnc = new Set();
+  Object.keys(HOST_ENC).forEach(t => {
+    if (st.enc[t] === undefined) return;
+    const r = hostAction(st.enc[t]);
+    if (r.a) E[HOST_ENC[t]] = r.a; else { badEnc.add(t); skipped.push('Knob ' + t + ' sends ' + st.enc[t] + ' (' + r.why + ')'); }
+  });
+  cfg.encoder = E;
+  if (!Object.keys(cfg.bindings).length) cfg.bindings.F13 = { tap: { swallow: true }, note: 'placeholder: the engine needs one binding' };
+  ops.push({ host: { op: 'write', config: cfg } });
+  onSent.push(() => {
+    ['normal', 'fn'].forEach(L => {
+      const t = {};
+      Object.keys(st.trig[L]).forEach(k => Object.keys(st.trig[L][k]).forEach(x => {
+        const v = bad.has(L + '|' + k + '|' + x) ? ((wr.trig[L][k] || {})[x]) : st.trig[L][k][x];
+        if (v !== undefined) (t[k] = t[k] || {})[x] = v;
+      }));
+      wr.trig[L] = t;
+    });
+    Object.keys(HOST_ENC).forEach(t => { const v = badEnc.has(t) ? wr.enc[t] : st.enc[t]; if (v === undefined) delete wr.enc[t]; else wr.enc[t] = v; });
+    wr.timing = clone(st.timing);
+  });
+}
+
 function plan() {
   const ops = [], skipped = [], onSent = [], warn = [];
   macroPlan(ops, warn, onSent);
+  const hostDiff = diffs().some(d => /^(Host layer|Knob) \(this PC\)$/.test(d.tag));
+  if (hostDiff) hostPlan(ops, skipped, onSent, warn);
   remapPlan('normal', ops, skipped, onSent, warn);
   remapPlan('fn', ops, skipped, onSent, warn);
   if (st.keyResponse !== wr.keyResponse || st.sleep !== wr.sleep || st.fnMode !== wr.fnMode || Object.keys(st.locks).some(k => st.locks[k] !== wr.locks[k])) {
@@ -113,6 +190,7 @@ function plan() {
     onSent.push(() => { wr.lcd = clone(st.lcd); });
   }
   diffs().forEach(d => {
+    if (hostDiff && /^(Host layer|Knob) \(this PC\)$/.test(d.tag)) return;
     if (d.tag === 'Normal layer' || d.tag === 'Fn layer' || d.tag === 'Settings' || d.tag === 'Locks') return;
     if (d.tag === 'Lighting' && /^(Effect|Brightness|Speed) /.test(d.text)) return;
     if (d.tag === 'Screen' && shot && /^(Screen image|Frame delay)/.test(d.text)) return;
@@ -129,13 +207,18 @@ async function sendNow(live) {
   ui.plan = { busy: true, live, out: [], skipped: p.skipped, warn: p.warn };
   render();
   for (const op of p.ops) {
-    const r = await window.aula.hid(Object.assign({ live }, op));
+    const r = op.host ? await window.aula.hostlayer(Object.assign({ live }, op.host)) : await window.aula.hid(Object.assign({ live }, op));
     ui.plan.out.push(r);
     if (!r.ok) break;
+    if (op.host && op.host.op === 'write') {
+      const s = await window.aula.hostlayer({ op: 'status' });
+      if (!s.ahk) ui.plan.warn.push('AutoHotkey v2 was not found, so the host layer cannot run. Install it or set AHK_EXE.');
+      else if (!s.running) { const g = await window.aula.hostlayer({ op: 'start', live }); ui.plan.out.push(g); if (!g.ok) break; }
+    }
   }
   ui.plan.busy = false;
   if (live) {
-    const ok = p.ops.length && ui.plan.out.length === p.ops.length && ui.plan.out.every(r => r.ok);
+    const ok = p.ops.length && ui.plan.out.length >= p.ops.length && ui.plan.out.every(r => r.ok);
     const dry = ui.plan.out.some(r => r.dry_run);
     if (ok && !dry) {
       p.onSent.forEach(f => f());
