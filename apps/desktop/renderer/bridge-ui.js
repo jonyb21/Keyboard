@@ -132,17 +132,18 @@ function hostPlan(ops, skipped, onSent, warn) {
   const cfg = { schemaVersion: 1, tapHoldMs: Math.min(1000, Math.max(50, st.timing.hold)), tapWindowMs: Math.min(1000, Math.max(50, st.timing.tap)), bindings: {}, layers: {} };
   if (cfg.tapHoldMs !== st.timing.hold) warn.push('Hold after is limited to 1000 ms by the host layer.');
   const bad = new Set(), claimed = {};
-  ['normal', 'fn'].forEach(L => Object.keys(st.trig[L]).forEach(k => {
-    const code = st.layers[L][k], tr = st.trig[L][k];
+  ['normal', 'fn'].forEach(L => [...new Set([...Object.keys(st.trig[L]), ...Object.keys(st.layers[L]).filter(k => HOST_FCODE.test(st.layers[L][k] || ''))])].forEach(k => {
+    const code = st.layers[L][k], tr = st.trig[L][k] || {};
     const no = why => Object.keys(tr).forEach(t => { bad.add(L + '|' + k + '|' + t); skipped.push((L === 'fn' ? 'Fn layer: ' : '') + k + ' ' + t + ' (' + why + ')'); });
     if (!HOST_FCODE.test(code || '')) return no(k === 'Fn' || !posName(k) ? 'this key cannot be remapped' : 'map this key to an F13-F24 code first');
     if (claimed[code]) return no(code + ' is already used by ' + claimed[code]);
-    const b = { tap: { swallow: true } };
+    const own = L === 'normal' && hostKeyName(k);   // a tap types the key's own label (F1 moved to F13 still types F1)
+    const b = { tap: own ? { send: own } : { swallow: true } };
     Object.keys(tr).forEach(t => {
       const r = hostAction(tr[t]);
       if (r.a) b[HOST_TRIG[t]] = r.a; else { bad.add(L + '|' + k + '|' + t); skipped.push(k + ' ' + t + ' sends ' + tr[t] + ' (' + r.why + ')'); }
     });
-    if (Object.keys(b).length > 1) { cfg.bindings[code] = b; claimed[code] = k; }
+    if (Object.keys(b).length > 1 || own) { cfg.bindings[code] = b; claimed[code] = k; }
   }));
   const appGroups = {}, apps = {}, sentApps = {};   // per-app overrides: one engine group per exe
   Object.keys(st.apps).forEach(exe => {
