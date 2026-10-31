@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const LIVE = process.env.AULA_LIVE_WRITES === '1';
 const OPS = new Set(['status', 'light', 'remap_show', 'remap_apply', 'clock_sync', 'screen_inspect', 'screen_upload', 'settings_show', 'settings_apply', 'macro_show', 'macro_apply']);
 const BOARD_IMAGE = path.join(ROOT, '.local-assets', 'f75max-black.png');
+const ICON = path.join(__dirname, 'build', 'icon.ico');
 
 function python() {
   if (process.env.AULA_PYTHON) return process.env.AULA_PYTHON;
@@ -131,6 +132,7 @@ function createWindow() {
     minWidth: 380,
     backgroundColor: '#0e0f11',
     title: 'AULA F75 Max',
+    icon: ICON,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -138,5 +140,6 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
+app.setAppUserModelId('com.jonyb21.aula-f75max');
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
