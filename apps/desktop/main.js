@@ -9,7 +9,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const LIVE = process.env.AULA_LIVE_WRITES === '1';
 const OPS = new Set(['status', 'light', 'remap_show', 'remap_apply', 'clock_sync', 'screen_inspect', 'screen_upload', 'settings_show', 'settings_apply', 'macro_show', 'macro_apply']);
 const BOARD_IMAGE = path.join(ROOT, '.local-assets', 'f75max-black.png');
-const ICON = path.join(__dirname, 'build', 'icon.ico');
+const LOCAL_ICON = path.join(ROOT, '.local-assets', 'aula-icon.ico');   // vendor logo recoloured; personal use, never committed
+const ICON = fs.existsSync(LOCAL_ICON) ? LOCAL_ICON : path.join(__dirname, 'build', 'icon.ico');
 
 function python() {
   if (process.env.AULA_PYTHON) return process.env.AULA_PYTHON;
