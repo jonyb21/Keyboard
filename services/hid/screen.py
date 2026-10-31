@@ -335,12 +335,21 @@ def prepare_image(
     *,
     fit: str = "contain",
     max_frames: int = MAX_FRAMES,
+    delay_ms: int | None = None,
 ) -> PreparedScreen:
-    """Decode and prepare a supported image file for the F75 Max LCD."""
+    """Decode and prepare a supported image file for the F75 Max LCD.
+
+    `delay_ms` (the vendor app's "Frame delay", 30..500) overrides every
+    frame's delay byte via delay_byte().
+    """
 
     Image, _, UnidentifiedImageError = _pillow()
     fit = _validate_fit(fit)
     max_frames = _validate_frame_limit(max_frames)
+    if delay_ms is not None and (
+        isinstance(delay_ms, bool) or not isinstance(delay_ms, int) or not 30 <= delay_ms <= 500
+    ):
+        raise ScreenError("frame delay must be an integer from 30 through 500 ms")
     path = Path(source)
     try:
         source_bytes = path.read_bytes()
@@ -371,7 +380,9 @@ def prepare_image(
             image.seek(index)
             frame = image.convert("RGBA").copy()
             encoded_frames.append(encode_rgb565le(fit_image(frame, fit)))
-            if source_frame_count == 1:
+            if delay_ms is not None:
+                delays.append(delay_byte(delay_ms))
+            elif source_frame_count == 1:
                 delays.append(STILL_DELAY)
             else:
                 delays.append(delay_byte(image.info.get("duration", frame.info.get("duration"))))

@@ -244,6 +244,27 @@ class Client:
         self._send_feature(finalize)
         self._readback(finalize)
 
+    def apply_settings(self, settings: protocol.DeviceSettings) -> None:
+        """begin -> `04 17` init -> one data page (no readback) -> apply.
+
+        Vendor FUN_00414020 (static RE): no `04 F0`.
+        """
+        data = protocol.build_wired_settings_data(settings)
+        for command in (protocol.build_wired_begin(), protocol.build_wired_settings_init()):
+            self._send_feature(command)
+            self._readback(command)
+        self._send_feature(data)
+        apply_cmd = protocol.build_wired_apply()
+        self._send_feature(apply_cmd)
+        self._readback(apply_cmd)
+
+    def apply_macros(self, steps) -> None:
+        """Send macros.macro_transactions(): readback on prepare/init/apply only."""
+        for label, payload in steps:
+            self._send_feature(payload)
+            if label in ("macro-prepare", "macro-init", "apply"):
+                self._readback(payload)
+
     def reset_remap(self, fn_layer: bool = False) -> None:
         """Clear every remap on one layer by sending the all-zero table.
 

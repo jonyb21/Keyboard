@@ -20,7 +20,7 @@ from pathlib import Path
 
 from . import cli
 
-WRITE_OPS = {"light", "remap_apply", "clock_sync", "screen_upload"}
+WRITE_OPS = {"light", "remap_apply", "clock_sync", "screen_upload", "settings_apply", "macro_apply"}
 
 
 def _light_argv(req: dict) -> list[str]:
@@ -46,6 +46,15 @@ def _mapping_file(req: dict, tmpdir: str) -> str:
     return str(path)
 
 
+def _json_file(req: dict, tmpdir: str, key: str, wrap: str, kind) -> str:
+    value = req.get(key)
+    if not isinstance(value, kind):
+        raise ValueError(f"{key} op needs a {wrap!r} {kind.__name__}")
+    path = Path(tmpdir) / f"{wrap}.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    return str(path)
+
+
 def build_argv(req: dict, tmpdir: str) -> list[str]:
     op = req.get("op")
     if op == "status":
@@ -54,12 +63,27 @@ def build_argv(req: dict, tmpdir: str) -> list[str]:
         return _light_argv(req)
     if op in ("remap_show", "remap_apply"):
         verb = "show" if op == "remap_show" else "apply"
-        return ["remap", verb, _mapping_file(req, tmpdir)]
+        argv = ["remap", verb, _mapping_file(req, tmpdir)]
+        layer = req.get("layer")
+        if layer is not None:
+            if layer not in ("normal", "fn"):
+                raise ValueError("layer must be 'normal' or 'fn'")
+            argv += ["--layer", layer]
+        return argv
+    if op in ("settings_show", "settings_apply"):
+        verb = "show" if op == "settings_show" else "apply"
+        return ["settings", verb, "--file", _json_file(req, tmpdir, "settings", "settings", dict)]
+    if op in ("macro_show", "macro_apply"):
+        verb = "show" if op == "macro_show" else "apply"
+        return ["macro", verb, _json_file(req, tmpdir, "macros", "macros", list)]
     if op == "clock_sync":
         return ["clock", "sync"]
     if op in ("screen_inspect", "screen_upload"):
         verb = "inspect" if op == "screen_inspect" else "upload"
-        return ["screen", verb, str(req["path"]), "--fit", str(req.get("fit", "contain"))]
+        argv = ["screen", verb, str(req["path"]), "--fit", str(req.get("fit", "contain"))]
+        if req.get("delay_ms") is not None:
+            argv += ["--delay-ms", str(req["delay_ms"])]
+        return argv
     # remap reset is deliberately absent: it clears the F13-F24 board map.
     raise ValueError(f"op {op!r} is not allowed")
 

@@ -8,7 +8,9 @@ Commands:
     clock    -- synchronize the wired LCD clock
     screen   -- inspect, prepare, upload, restore, or test the 128x128 LCD
     remap    -- key remapping: apply <file.json> / reset / show <file.json>
-                (wired only; `show` never touches hardware)
+                [--layer normal|fn] (wired only; `show` never touches hardware)
+    settings -- device settings (04 17): show / apply, every field explicit
+    macro    -- macro upload (04 19/04 15): show / apply <file.json>
 
 `--dry-run` prints deterministic operation evidence without opening any device.
 Verified feature-report commands include exact wire hex. Screen commands print
@@ -23,11 +25,12 @@ HidapiTransport.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 import time
 
-from . import custom_lighting, device, protocol, remap as remap_model, screen
+from . import custom_lighting, device, macros as macro_model, protocol, remap as remap_model, screen
 from .client import AckError, Client, ScreenClient, ScreenUploadError, Transport
 from .protocol import LightingConfig, ProtocolError
 
@@ -111,6 +114,11 @@ def build_parser() -> argparse.ArgumentParser:
             "--fit", choices=tuple(sorted(screen.FIT_MODES)), default="contain"
         )
         item.add_argument("--max-frames", type=int, default=screen.MAX_FRAMES)
+        item.add_argument(
+            "--delay-ms",
+            type=int,
+            help="frame delay override for every frame, 30..500 ms",
+        )
         if command == "prepare":
             item.add_argument("--output", help="destination .f75lcd stream")
     restore = lcd_sub.add_parser(
@@ -140,14 +148,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     remap = sub.add_parser(
         "remap",
-        help="key remapping (wired feature transaction, normal layer)",
+        help="key remapping (wired feature transaction, normal or Fn layer)",
     )
     remap_sub = remap.add_subparsers(dest="remap_command", required=True)
     remap_apply = remap_sub.add_parser(
         "apply", help="resolve a mapping file and send it to the keyboard"
     )
     remap_apply.add_argument("file", help="JSON mapping file (position/send)")
-    remap_sub.add_parser(
+    remap_reset = remap_sub.add_parser(
         "reset", help="clear all remaps (all-zero table = firmware defaults)"
     )
     remap_show = remap_sub.add_parser(
@@ -155,6 +163,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="print resolved slots and transaction hex; never touches hardware",
     )
     remap_show.add_argument("file", help="JSON mapping file (position/send)")
+    for item in (remap_apply, remap_reset, remap_show):
+        item.add_argument(
+            "--layer", choices=("normal", "fn"), default="normal",
+            help="normal (04 11) or Fn layer (04 27) table; default normal",
+        )
+
+    settings = sub.add_parser(
+        "settings",
+        help="device settings (04 17); the packet writes every field",
+    )
+    settings_sub = settings.add_subparsers(dest="settings_command", required=True)
+    for verb, help_text in (
+        ("apply", "send settings to the keyboard"),
+        ("show", "print the settings packet; never touches hardware"),
+    ):
+        item = settings_sub.add_parser(verb, help=help_text)
+        item.add_argument("--file", help="JSON of the six settings (e.g. data/settings_baseline.json)")
+        for name in protocol.SETTINGS_FIELDS:
+            item.add_argument(f"--{name.replace('_', '-')}", type=int, help="overrides --file")
+
+    macro = sub.add_parser("macro", help="macro upload (04 19 / 04 15)")
+    macro_sub = macro.add_subparsers(dest="macro_command", required=True)
+    for verb, help_text in (
+        ("apply", "send all macros to the keyboard"),
+        ("show", "print the macro transaction; never touches hardware"),
+    ):
+        item = macro_sub.add_parser(verb, help=help_text)
+        item.add_argument("file", help="JSON list of macros (name/events)")
     return parser
 
 
@@ -443,7 +479,9 @@ def _prepare_screen_command(args) -> screen.PreparedScreen:
             )
         return screen.prepare_image(source, fit=args.fit, max_frames=args.max_frames)
     source = Path(args.source)
-    return screen.prepare_image(source, fit=args.fit, max_frames=args.max_frames)
+    return screen.prepare_image(
+        source, fit=args.fit, max_frames=args.max_frames, delay_ms=args.delay_ms
+    )
 
 
 def _print_screen_metadata(prepared: screen.PreparedScreen, out) -> None:
@@ -534,21 +572,22 @@ def _resolved_remaps(args):
     return remap_model.resolve_mapping(entries, layout), layout
 
 
-def _print_remap_plan(remaps, layout, out) -> None:
+def _print_remap_plan(remaps, layout, out, fn_layer=False) -> None:
     """Stable dry-run/show output: resolved slots, then the wire sequence."""
     for entry in remaps:
         print(f"slot: {remap_model.describe_remap(entry, layout)}", file=out)
     if not remaps:
         print("slot: none (identity table, clears all remaps)", file=out)
-    for label, payload in remap_model.remap_transactions(remaps):
+    for label, payload in remap_model.remap_transactions(remaps, fn_layer):
         print(f"wired <- [{label}] {_hex(payload)}", file=out)
 
 
 def _cmd_remap(args, out, enumerator, transport_factory) -> int:
     remaps, layout = _resolved_remaps(args)
+    fn_layer = args.layer == "fn"
 
     if args.remap_command == "show" or args.dry_run:
-        _print_remap_plan(remaps, layout, out)
+        _print_remap_plan(remaps, layout, out, fn_layer)
         return 0
 
     found = _discover(enumerator)
@@ -563,13 +602,98 @@ def _cmd_remap(args, out, enumerator, transport_factory) -> int:
     transport = transport_factory(endpoint)
     client = Client(transport)
     try:
-        client.apply_remap(remaps)
+        client.apply_remap(remaps, fn_layer=fn_layer)
     finally:
         client.close()
+    suffix = " (fn layer)" if fn_layer else ""
     if args.remap_command == "reset":
-        print("Remap reset: all keys back to firmware defaults", file=out)
+        print(f"Remap reset: all keys back to firmware defaults{suffix}", file=out)
     else:
-        print(f"Remap applied: {len(remaps)} keys from {args.file}", file=out)
+        print(f"Remap applied: {len(remaps)} keys from {args.file}{suffix}", file=out)
+    return 0
+
+
+def _open_wired_client(found, out, operation, transport_factory):
+    """Exact-board wired client, or None after printing why not."""
+    if found.wired_config is None:
+        print(f"{operation} requires the wired (0C45:800A) config endpoint", file=out)
+        return None
+    if not _allow_exact_wired_mutation(found.wired_config, out, operation):
+        return None
+    return Client(transport_factory(device.require_exact_wired_config(found)))
+
+
+def _resolved_settings(args) -> protocol.DeviceSettings:
+    values = {}
+    if args.file:
+        try:
+            with open(args.file, encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ProtocolError(f"cannot read settings file {args.file}: {exc}") from exc
+        if isinstance(doc, dict) and isinstance(doc.get("settings"), dict):
+            doc = doc["settings"]
+        if not isinstance(doc, dict):
+            raise ProtocolError(f"{args.file}: expected a JSON object of settings")
+        unknown = set(doc) - set(protocol.SETTINGS_FIELDS) - {"comment"}
+        if unknown:
+            raise ProtocolError(f"unknown settings fields {sorted(unknown)}")
+        values.update({k: v for k, v in doc.items() if k != "comment"})
+    values.update(
+        {n: getattr(args, n) for n in protocol.SETTINGS_FIELDS if getattr(args, n) is not None}
+    )
+    missing = [n for n in protocol.SETTINGS_FIELDS if n not in values]
+    if missing:
+        raise ProtocolError(
+            f"settings write every field; missing {', '.join(missing)}"
+        )
+    return protocol.DeviceSettings(**values).validate()
+
+
+def _cmd_settings(args, out, enumerator, transport_factory) -> int:
+    settings = _resolved_settings(args)
+    if args.settings_command == "show" or args.dry_run:
+        for name in protocol.SETTINGS_FIELDS:
+            print(f"setting: {name}={getattr(settings, name)}", file=out)
+        for label, payload in (
+            ("begin", protocol.build_wired_begin()),
+            ("settings-init", protocol.build_wired_settings_init()),
+            ("settings-data", protocol.build_wired_settings_data(settings)),
+            ("apply", protocol.build_wired_apply()),
+        ):
+            print(f"wired <- [{label}] {_hex(payload)}", file=out)
+        return 0
+    client = _open_wired_client(_discover(enumerator), out, "settings", transport_factory)
+    if client is None:
+        return 1
+    try:
+        client.apply_settings(settings)
+    finally:
+        client.close()
+    print("Settings applied", file=out)
+    return 0
+
+
+def _cmd_macro(args, out, enumerator, transport_factory) -> int:
+    macros = macro_model.load_macro_file(args.file)
+    steps = macro_model.macro_transactions(macros)
+    if args.macro_command == "show" or args.dry_run:
+        for i, entry in enumerate(macros):
+            print(
+                f"macro: {i} {entry.get('name', '')!r} events={len(entry.get('events') or [])}",
+                file=out,
+            )
+        for label, payload in steps:
+            print(f"wired <- [{label}] {_hex(payload)}", file=out)
+        return 0
+    client = _open_wired_client(_discover(enumerator), out, "macro", transport_factory)
+    if client is None:
+        return 1
+    try:
+        client.apply_macros(steps)
+    finally:
+        client.close()
+    print(f"Macros applied: {len(macros)}", file=out)
     return 0
 
 
@@ -609,6 +733,10 @@ def main(
             return _cmd_screen(args, out, enumerator, transport_factory)
         if args.command == "remap":
             return _cmd_remap(args, out, enumerator, transport_factory)
+        if args.command == "settings":
+            return _cmd_settings(args, out, enumerator, transport_factory)
+        if args.command == "macro":
+            return _cmd_macro(args, out, enumerator, transport_factory)
     except (
         AckError,
         device.DeviceSelectionError,

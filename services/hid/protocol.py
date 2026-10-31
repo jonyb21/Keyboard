@@ -536,6 +536,94 @@ def split_remap_table(table: bytes) -> list[bytes]:
     ]
 
 
+# --- Wired device settings (04 17) -----------------------------------------
+
+SETTINGS_FIELDS = (
+    "disable_alttab",
+    "disable_altf4",
+    "disable_win",
+    "fn_switch",
+    "sleep_time",
+    "key_respondtime",
+)
+_SETTINGS_RANGES = {
+    "disable_alttab": (0, 1),
+    "disable_altf4": (0, 1),
+    "disable_win": (0, 1),
+    "fn_switch": (0, 1),  # 0 momentary, 1 toggle (INFERRED from UI strings)
+    "sleep_time": (0, 3),  # off, 1, 5, 30 min (INFERRED from combo order)
+    "key_respondtime": (1, 5),  # "Level 1..5"
+}
+
+
+@dataclass(frozen=True)
+class DeviceSettings:
+    """Every field of the vendor `04 17` packet; no defaults on purpose.
+
+    The packet rewrites all fields and the firmware has no read command, so a
+    caller must state every value. Source: vendor DeviceDriver FUN_00414020
+    (static RE, docs command-table.md 2.1).
+    """
+
+    disable_alttab: int
+    disable_altf4: int
+    disable_win: int
+    fn_switch: int
+    sleep_time: int
+    key_respondtime: int
+
+    def validate(self) -> "DeviceSettings":
+        for name in SETTINGS_FIELDS:
+            value = getattr(self, name)
+            lo, hi = _SETTINGS_RANGES[name]
+            if isinstance(value, bool):
+                value = int(value)
+            if not isinstance(value, int) or not lo <= value <= hi:
+                raise ProtocolError(f"setting {name} must be an integer {lo}..{hi}")
+        return self
+
+
+def build_wired_settings_init() -> bytes:
+    """`04 17` with [2]=01 [8]=01, requires readback (FUN_00414020, OBSERVED)."""
+    return _wired({0: 0x04, 1: 0x17, 2: 0x01, 8: 0x01})
+
+
+def build_wired_settings_data(settings: DeviceSettings) -> bytes:
+    """Settings data page: [1]=01, [2..4] locks, [5] fn, [6] sleep, [8] response.
+
+    Trailer AA 55 at 62-63. Offsets are payload offsets (no report id).
+    """
+    settings.validate()
+    return _wired(
+        {
+            1: 0x01,
+            2: int(settings.disable_alttab),
+            3: int(settings.disable_altf4),
+            4: int(settings.disable_win),
+            5: int(settings.fn_switch),
+            6: int(settings.sleep_time),
+            8: int(settings.key_respondtime),
+            62: TRAILER[0],
+            63: TRAILER[1],
+        }
+    )
+
+
+# --- Wired macro upload (04 19 / 04 15) -------------------------------------
+
+
+def build_wired_macro_prepare() -> bytes:
+    """`04 19`, requires readback. Meaning UNKNOWN (vendor FUN_0042d6d0)."""
+    return _wired({0: 0x04, 1: 0x19})
+
+
+def build_wired_macro_init(pages: int) -> bytes:
+    """`04 15` with [8]=PAGES (data page count including the trailer page)."""
+    if isinstance(pages, bool) or not isinstance(pages, int) or not 1 <= pages <= 255:
+        raise ProtocolError("macro page count must be an integer 1..255")
+    return _wired({0: 0x04, 1: 0x15, 8: pages})
+
+
 # --- Dongle commands (32-byte output reports on 0xFF60) --------------------
 
 

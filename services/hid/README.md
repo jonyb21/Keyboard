@@ -19,6 +19,7 @@ was recovered from.
 | `screen.py` | Lazy-Pillow image decoder, fit engine, RGB565LE encoder, restore-sequence loader, and page-aligned stream metadata. |
 | `custom_lighting.py` | Focus Core/Aurora stock presets plus an exact-layout per-key compiler whose live path is capture-gated. |
 | `remap.py` | Mapping model: JSON mapping files -> resolved remap slots via the layout truth table. |
+| `macros.py` | Macro blob/page builder and `04 19`/`04 15` transaction (pure). |
 | `cli.py` | `status`, `battery`, `light`, `clock`, `screen`, and `remap` commands with `--dry-run`. |
 | `data/f75max_layout.json` | Exact-vendor F75 `key_index` and `light_index` ground truth for 80 physical keys. |
 | `data/lighting_profiles.json` | Text-only stock and per-key definitions for Focus Core and Aurora. |
@@ -128,6 +129,68 @@ and can never be remapped — the builders refuse.
 Transaction: `04 18` begin, `04 11` init (byte8=0x09), the 576-byte slot
 table as 9 feature reports, `04 02` apply, `04 F0` finalize
 ([F108] pkg/aula/remap.go, hardware-verified there; contract section 6.4).
+
+### Send values (typed actions)
+
+`send` stays a string for plain keys (`"A"`, `"0x46"`, `"Ctrl_R"`). It may
+also be a typed object with exactly one kind (vendor slot formats from
+`DeviceDriver` FUN_004183d0, static RE):
+
+```json
+{"position": "F5", "send": {"media": "PlayPause"}}
+{"position": "F6", "send": {"combo": "Ctrl+Shift+Esc"}}
+{"position": "F7", "send": {"mouse": "Back"}}
+{"position": "F8", "send": {"macro": 0, "mode": "once", "count": 1}}
+{"position": "F9", "send": "Disabled"}
+```
+
+| Kind | Slot | Names |
+|---|---|---|
+| plain string | `02 MOD KEY 00` | unchanged; a lone modifier gives `02 MASK 00 00` |
+| `combo` | `02 MOD KEY 00` | `+`-joined; modifiers ctrl/shift/alt/win (+ `r`-prefixed or `_R` right-hand forms), at most one other key |
+| `media` | `03 LO HI` | PlayPause, Stop, Prev, Next, VolumeUp, VolumeDown, Mute, MyComputer, Calculator, Mail, MediaSelect, WebHome, Refresh, WebStop, Back, Forward, Favorites, Search |
+| `mouse` | `01 P1 P2` | Left, Right, Middle, DoubleClick, Back/Button4, Forward/Button5, ScrollUp, ScrollDown |
+| `macro` | `06 IDX A B` | IDX 0..99 (position in the uploaded macro list), `mode` only `once`, `count` 1..255 (default 1) |
+| `"Disabled"` | `05 03 00 00` | INFERRED; `remap show` marks it |
+
+Bytes are observed in the vendor binary; INFERRED items: the meaning of
+`05 03`, the macro A/B bytes (A=0 for `once`, B=count), mouse Back vs Forward
+(the vendor string order says the opposite of the USB bitmask used here), and
+DoubleClick. `--layer normal|fn` on the remap commands selects the `04 11`
+or Fn-layer `04 27` table (default `normal`). Fn layer 04 27 is observed in the
+vendor app; it has not been exercised on the board here.
+
+## Device settings
+
+`04 17` rewrites every field and the board has no read command, so every
+field is required (no defaults). Start from `data/settings_baseline.json`
+(Jon's values from the vendor DB) and override:
+
+```powershell
+.\.venv\Scripts\python.exe -m services.hid.cli settings show --file services/hid/data/settings_baseline.json
+.\.venv\Scripts\python.exe -m services.hid.cli --dry-run settings apply --file services/hid/data/settings_baseline.json --sleep-time 3
+```
+
+Fields: `disable_alttab`, `disable_altf4`, `disable_win` (0/1), `fn_switch`
+(0 momentary, 1 toggle), `sleep_time` (0 off, 1 = 1 min, 2 = 5 min, 3 = 30 min),
+`key_respondtime` (1..5). Sequence: `04 18`, `04 17`, one data page (no readback),
+`04 02`; no `04 F0`. Meanings of `fn_switch` and `sleep_time` values are INFERRED.
+
+## Macros
+
+`macro show FILE` prints the transaction without touching hardware;
+`macro apply FILE` sends it. The file is a list (or `{"macros": [...]}`) of
+`{"name": ..., "events": [...]}`; events are `{"down": "A"}`, `{"up": "A"}`,
+`{"delay": 50}` (ms, clamped up to 10), `{"mouse_down": "Left"}`,
+`{"mouse_up": "Left"}` (Left/Middle/Right). All macros are sent in one blob
+(`macros.py`); the vendor refuses more than 337 events in total. Sequence:
+`04 19` (meaning UNKNOWN), `04 15` with byte 8 = page count, data pages (no
+readback), `04 02`.
+
+## LCD frame delay
+
+`screen inspect|prepare|upload ... --delay-ms N` (30..500) writes one delay
+byte (`ms/2`, minimum 1) for every frame, including stills. Padding unchanged.
 
 Library use:
 

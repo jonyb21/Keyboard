@@ -1,0 +1,11 @@
+{
+  "comment": "Jon's AULA F75 Max device settings as read from the vendor app DB (firmware 0x0113). The 04 17 packet rewrites every field and the board has no read command, so start from this file and override. sleep_time: 0 off, 1 = 1 min, 2 = 5 min, 3 = 30 min (INFERRED from vendor combo order). key_respondtime: Level 1..5. fn_switch: 0 momentary, 1 toggle (INFERRED).",
+  "settings": {
+    "disable_alttab": 0,
+    "disable_altf4": 0,
+    "disable_win": 0,
+    "fn_switch": 0,
+    "sleep_time": 2,
+    "key_respondtime": 2
+  }
+}

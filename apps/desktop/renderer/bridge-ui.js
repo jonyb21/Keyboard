@@ -1,7 +1,8 @@
 // Connects the UI to the keyboard through window.aula (preload.js).
-// Only what services/hid supports is sent: normal-layer key remaps, the
-// lighting effect/brightness/speed and an uploaded screen image. Everything
-// else stays staged and is listed as "not connected yet".
+// Only what services/hid supports is sent: key remaps on both layers (keys,
+// combos, media, mouse, disable), settings and locks, the lighting effect/
+// brightness/speed and an uploaded screen image with its frame delay.
+// Everything else stays staged and is listed as "not connected yet".
 
 // UI key label -> f75max_layout position name (others match case-insensitively).
 const POS = { '`': 'Backtick', '-': 'Minus', '=': 'Equal', '[': 'LBracket', ']': 'RBracket', '\\': 'Backslash', ';': 'Semicolon', "'": 'Quote', ',': 'Comma', '.': 'Period', '/': 'Slash', Bksp: 'Backspace', Del: 'Delete', PgUp: 'PageUp', PgDn: 'PageDown', Caps: 'CapsLock', Shift: 'Shift_L', RShift: 'Shift_R', Ctrl: 'Ctrl_L', Win: 'Win_L', Alt: 'Alt_L', RAlt: 'Alt_R' };
@@ -19,25 +20,63 @@ const posName = k => k === 'Fn' ? null : layoutName(k);
 const hidSendName = v => SEND[v] || layoutName(v);
 const lightMode = m => m === 'LED Off' ? 'Off' : String(m).replace(/\s+/g, '');
 
+// UI media / mouse names -> remap.py typed send names.
+const MEDIA_SEND = { Mute: 'Mute', 'Volume down': 'VolumeDown', 'Volume up': 'VolumeUp', 'Play/Pause': 'PlayPause', 'Next track': 'Next', 'Previous track': 'Prev', Stop: 'Stop' };
+const MOUSE_SEND = { 'Left click': 'Left', 'Right click': 'Right', 'Middle click': 'Middle', 'Wheel up': 'ScrollUp', 'Wheel down': 'ScrollDown' };
+const COMBO_MODS = ['ctrl', 'shift', 'alt', 'win'];
+const SLEEP_BYTE = { Never: 0, '1 min': 1, '5 min': 2, '30 min': 3 };
+
+function comboOk(v) {
+  const t = v.split('+').map(x => x.trim()), keys = t.filter(x => !COMBO_MODS.includes(x.toLowerCase()));
+  return t.every(Boolean) && keys.length <= 1 && keys.every(k => hidSendName(k));
+}
+// UI value -> send value the backend accepts, or null if the firmware cannot do it.
+function sendFor(v) {
+  if (v === undefined) return null;
+  if (v === 'Disabled') return 'Disabled';
+  if (MEDIA_SEND[v]) return { media: MEDIA_SEND[v] };
+  if (MOUSE_SEND[v]) return { mouse: MOUSE_SEND[v] };
+  if (v === 'Action ring' || /^(AHK|Open|Macro): /.test(v) || SYSTEM.includes(v)) return null;
+  const plain = hidSendName(v);
+  if (plain) return plain;
+  return v.includes('+') && comboOk(v) ? { combo: v.split('+').map(t => hidSendName(t.trim()) || t.trim()).join('+') } : null;
+}
+const whyNot = v => /^Macro: /.test(v) ? "record the macro's keys first" : 'the keyboard cannot do this';
+
+function remapPlan(L, ops, skipped, onSent, warn) {
+  const S = st.layers[L], W = wr.layers[L], name = L === 'fn' ? 'Fn layer: ' : '';
+  if (JSON.stringify(S) === JSON.stringify(W)) return;
+  const mappings = [], sent = {};
+  new Set([...Object.keys(S), ...Object.keys(W)]).forEach(k => {
+    const pos = posName(k);
+    let v = S[k], send = pos ? sendFor(v) : null;
+    if (v !== undefined && !send) {
+      skipped.push(name + k + ' sends ' + v + ' (' + (pos ? whyNot(v) : 'this key cannot be remapped') + ')');
+      v = pos ? W[k] : undefined; send = pos ? sendFor(v) : null;
+    }
+    if (v === undefined || !send) return;
+    mappings.push({ position: pos, send });
+    sent[k] = v;
+  });
+  if (!mappings.length) return;
+  if (mappings.some(m => m.send === '0x6B' || m.send === '0x6C')) warn.push('F16 and F17 are used by the Cidoo knob, so a key sending them may clash with it.');
+  ops.push({ op: 'remap_apply', layer: L, mappings });
+  onSent.push(() => { wr.layers[L] = sent; });
+}
+
 function plan() {
   const ops = [], skipped = [], onSent = [], warn = [];
-  const S = st.layers.normal, W = wr.layers.normal;
-  if (JSON.stringify(S) !== JSON.stringify(W)) {
-    const mappings = [], sent = {};
-    new Set([...Object.keys(S), ...Object.keys(W)]).forEach(k => {
-      const pos = posName(k);
-      let v = S[k], send = hidSendName(v);
-      if (v !== undefined && (!pos || !send)) {
-        skipped.push(k + ' sends ' + v);
-        v = pos ? W[k] : undefined; send = hidSendName(v);
-      }
-      if (v === undefined || !send) return;
-      mappings.push({ position: pos, send });
-      sent[k] = v;
-    });
-    if (mappings.some(m => m.send === '0x6B' || m.send === '0x6C')) warn.push('F16 and F17 are used by the Cidoo knob, so a key sending them may clash with it.');
-    ops.push({ op: 'remap_apply', mappings });
-    onSent.push(() => { wr.layers.normal = sent; });
+  remapPlan('normal', ops, skipped, onSent, warn);
+  remapPlan('fn', ops, skipped, onSent, warn);
+  if (st.keyResponse !== wr.keyResponse || st.sleep !== wr.sleep || st.fnMode !== wr.fnMode || Object.keys(st.locks).some(k => st.locks[k] !== wr.locks[k])) {
+    const LOCKS = ['Alt+Tab', 'Alt+F4', 'Win key'];
+    if (!LOCKS.every(k => k in st.locks) || !['Toggle', 'Momentary'].includes(st.fnMode)) skipped.push('Settings: lock or Fn mode value is missing, so nothing was sent');
+    else {
+      warn.push('Settings are sent as one packet and the keyboard cannot be read back, so locks and Fn mode are rewritten from what this screen shows.');
+      ops.push({ op: 'settings_apply', settings: { disable_alttab: +!!st.locks['Alt+Tab'], disable_altf4: +!!st.locks['Alt+F4'], disable_win: +!!st.locks['Win key'],
+        fn_switch: st.fnMode === 'Toggle' ? 1 : 0, sleep_time: SLEEP_BYTE[st.sleep], key_respondtime: st.keyResponse } });
+      onSent.push(() => { Object.assign(wr, { keyResponse: st.keyResponse, sleep: st.sleep, fnMode: st.fnMode, locks: clone(st.locks) }); });
+    }
   }
   const L = st.light, WL = wr.light;
   if (L.mode !== WL.mode || L.brightness !== WL.brightness || L.speed !== WL.speed) {
@@ -46,13 +85,17 @@ function plan() {
   }
   const shot = st.lcd.current !== wr.lcd.current && ui.file && window.aula;
   if (shot) {
-    ops.push({ op: 'screen_upload', path: window.aula.pathForFile(ui.file) });
+    const op = { op: 'screen_upload', path: window.aula.pathForFile(ui.file) };
+    if (st.lcd.delay !== wr.lcd.delay) op.delay_ms = st.lcd.delay;
+    ops.push(op);
     onSent.push(() => { wr.lcd = clone(st.lcd); });
   }
   diffs().forEach(d => {
-    if (d.tag === 'Normal layer') return;
+    if (d.tag === 'Normal layer' || d.tag === 'Fn layer' || d.tag === 'Settings' || d.tag === 'Locks') return;
     if (d.tag === 'Lighting' && /^(Effect|Brightness|Speed) /.test(d.text)) return;
-    if (d.tag === 'Screen' && d.text.startsWith('Screen image') && shot) return;
+    if (d.tag === 'Screen' && shot && /^(Screen image|Frame delay)/.test(d.text)) return;
+    if (d.tag === 'Screen' && d.text.startsWith('Frame delay')) return skipped.push(d.text + ' (choose an image to send it with the delay)');
+    if (d.tag === 'Macros') return skipped.push(d.tag + ': ' + d.text + " (record the macro's keys first)");
     skipped.push(d.tag + ': ' + d.text);
   });
   return { ops, skipped, onSent, warn };

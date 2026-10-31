@@ -71,6 +71,65 @@ USAGE_NAMES = {
 }
 
 
+# Typed send vocabulary (vendor FUN_004183d0, docs command-table.md 2.7).
+# Slot action 01 is the vendor's mouse action (the F108 doc calls 01 "special").
+MOUSE_ACTION = protocol.REMAP_ACTION_SPECIAL
+# (P1, P2) pairs are OBSERVED in the builder. Which button each pair means is
+# INFERRED from UI string order; Back/Forward follow the USB mouse bitmask
+# (08 = Button4/Back, 10 = Button5/Forward), the doc's string order says the
+# opposite, so this one is a guess. DoubleClick (01 03) is bytes-observed only.
+MOUSE_NAMES = {
+    "left": (0x01, 0x01),
+    "right": (0x01, 0x02),
+    "middle": (0x01, 0x04),
+    "doubleclick": (0x01, 0x03),
+    "back": (0x01, 0x08),
+    "button4": (0x01, 0x08),
+    "forward": (0x01, 0x10),
+    "button5": (0x01, 0x10),
+    "scrollup": (0x03, 0x01),
+    "scrolldown": (0x03, 0xFF),
+}
+# 16-bit consumer usages (OBSERVED in the vendor id 500-517 table; names are
+# inferred from the usage values).
+MEDIA_NAMES = {
+    "playpause": 0x00CD,
+    "stop": 0x00B7,
+    "prev": 0x00B6,
+    "next": 0x00B5,
+    "volumeup": 0x00E9,
+    "volumedown": 0x00EA,
+    "mute": 0x00E2,
+    "mycomputer": 0x0194,
+    "calculator": 0x0192,
+    "mail": 0x018A,
+    "mediaselect": 0x0183,
+    "webhome": 0x0223,
+    "refresh": 0x0227,
+    "webstop": 0x0226,
+    "back": 0x0224,
+    "forward": 0x0225,
+    "favorites": 0x022A,
+    "search": 0x0221,
+}
+COMBO_MODIFIERS = {
+    "ctrl": 0x01, "lctrl": 0x01, "ctrl_l": 0x01,
+    "shift": 0x02, "lshift": 0x02, "shift_l": 0x02,
+    "alt": 0x04, "lalt": 0x04, "alt_l": 0x04,
+    "win": 0x08, "gui": 0x08, "lwin": 0x08, "win_l": 0x08,
+    "rctrl": 0x10, "ctrl_r": 0x10,
+    "rshift": 0x20, "shift_r": 0x20,
+    "ralt": 0x40, "alt_r": 0x40,
+    "rwin": 0x80, "win_r": 0x80,
+}
+# 05 03 00 00 bytes OBSERVED (vendor binding type 1); "disable key" is INFERRED.
+DISABLED_SLOT = (protocol.REMAP_ACTION_PROFILE, 0x03, 0x00, 0x00)
+# Macro slot 06 IDX A B: A = play mode, B = loop count, both INFERRED from UI
+# strings. Only "once" is supported; A=0 for it is a guess.
+MACRO_MODES = {"once": 0x00}
+MACRO_MAX_INDEX = 99
+
+
 @dataclass(frozen=True)
 class LayoutKey:
     """One physical key from the vendor layout table."""
@@ -128,6 +187,75 @@ def resolve_send(name: str, layout: dict[str, LayoutKey]) -> int:
     return usage
 
 
+def _lookup(table: dict, value, what: str):
+    if not isinstance(value, str) or value.strip().lower() not in table:
+        raise ProtocolError(f"unknown {what} {value!r}")
+    return table[value.strip().lower()]
+
+
+def _resolve_combo(index: int, text, layout) -> KeyRemap:
+    """'Ctrl+Shift+Esc' -> 02 MOD KEY 00. A lone key or modifier falls back
+    to make_key_remap so it matches the plain string form byte for byte."""
+    if not isinstance(text, str) or not text.strip():
+        raise ProtocolError(f"combo must be text like 'Ctrl+Shift+Esc', got {text!r}")
+    tokens = [t.strip() for t in text.split("+")]
+    if len(tokens) == 1:
+        return protocol.make_key_remap(index, resolve_send(tokens[0], layout))
+    mods = 0
+    keys = []
+    for token in tokens:
+        bit = COMBO_MODIFIERS.get(token.lower())
+        if bit is None:
+            keys.append(token)
+        else:
+            mods |= bit
+    if len(keys) > 1:
+        raise ProtocolError(f"combo {text!r} has more than one non-modifier key")
+    usage = resolve_send(keys[0], layout) if keys else 0
+    if usage and protocol.is_modifier_usage(usage):
+        mods |= protocol.MODIFIER_BITS[usage]
+        usage = 0
+    return KeyRemap(index, protocol.REMAP_ACTION_KEY, mods, usage).validate()
+
+
+def resolve_slot(index: int, send, layout) -> KeyRemap:
+    """Resolve a `send` value (plain string or typed object) to a slot."""
+    if isinstance(send, str):
+        if send.strip().lower() in ("disabled", "disable"):
+            return KeyRemap(index, *DISABLED_SLOT).validate()
+        return protocol.make_key_remap(index, resolve_send(send, layout))
+    if not isinstance(send, dict):
+        raise ProtocolError(f"send must be a string or object, got {send!r}")
+    kinds = [k for k in ("combo", "media", "mouse", "macro") if k in send]
+    if len(kinds) != 1:
+        raise ProtocolError(
+            "typed send needs exactly one of combo, media, mouse, macro"
+        )
+    kind = kinds[0]
+    extra = set(send) - {kind} - ({"mode", "count"} if kind == "macro" else set())
+    if extra:
+        raise ProtocolError(f"unexpected send fields {sorted(extra)}")
+    if kind == "combo":
+        return _resolve_combo(index, send["combo"], layout)
+    if kind == "media":
+        usage = _lookup(MEDIA_NAMES, send["media"], "media name")
+        return KeyRemap(
+            index, protocol.REMAP_ACTION_CONSUMER, usage & 0xFF, usage >> 8
+        ).validate()
+    if kind == "mouse":
+        p1, p2 = _lookup(MOUSE_NAMES, send["mouse"], "mouse name")
+        return KeyRemap(index, MOUSE_ACTION, p1, p2).validate()
+    macro, count = send["macro"], send.get("count", 1)
+    mode = _lookup(MACRO_MODES, send.get("mode", "once"), "macro mode")
+    for name, value, lo, hi in (
+        ("macro index", macro, 0, MACRO_MAX_INDEX),
+        ("macro count", count, 1, 255),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or not lo <= value <= hi:
+            raise ProtocolError(f"{name} must be an integer {lo}..{hi}")
+    return KeyRemap(index, protocol.REMAP_ACTION_MACRO, macro, mode, count).validate()
+
+
 def resolve_position(name: str, layout: dict[str, LayoutKey]) -> LayoutKey:
     """Resolve a `position` value to its layout key (Fn guard applies later)."""
     key = layout.get(name.strip().lower())
@@ -159,8 +287,7 @@ def resolve_mapping(
             raise ProtocolError(
                 "Fn key is the hardware layer key and cannot be remapped"
             )
-        usage = resolve_send(send, layout)
-        remaps.append(protocol.make_key_remap(key.key_index, usage))
+        remaps.append(resolve_slot(key.key_index, send, layout))
     seen: set[int] = set()
     for remap in remaps:
         if remap.key_index in seen:
@@ -237,4 +364,9 @@ def describe_remap(remap: KeyRemap, layout: dict[str, LayoutKey]) -> str:
     slot = bytes(
         (remap.action, remap.param1, remap.param2, remap.param3)
     ).hex(" ")
-    return f"{where} -> slot {slot} @ offset {remap.key_index * 4}"
+    note = ""
+    if (remap.action, remap.param1, remap.param2, remap.param3) == DISABLED_SLOT:
+        note = " [INFERRED: disable key]"
+    elif remap.action == protocol.REMAP_ACTION_MACRO:
+        note = " [INFERRED: macro mode/count bytes]"
+    return f"{where} -> slot {slot} @ offset {remap.key_index * 4}{note}"

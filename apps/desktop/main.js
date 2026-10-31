@@ -7,7 +7,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const LIVE = process.env.AULA_LIVE_WRITES === '1';
-const OPS = new Set(['status', 'light', 'remap_show', 'remap_apply', 'clock_sync', 'screen_inspect', 'screen_upload']);
+const OPS = new Set(['status', 'light', 'remap_show', 'remap_apply', 'clock_sync', 'screen_inspect', 'screen_upload', 'settings_show', 'settings_apply', 'macro_show', 'macro_apply']);
 const BOARD_IMAGE = path.join(ROOT, '.local-assets', 'f75max-black.png');
 
 function python() {
