@@ -5,7 +5,8 @@
   "description": "Desktop control app for the AULA F75 Max",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "postinstall": "node node_modules/electron/install.js"
   },
   "devDependencies": {
     "electron": "44.9.0"
