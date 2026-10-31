@@ -40,7 +40,13 @@ function runBridge(req) {
 let queue = Promise.resolve();
 ipcMain.handle('hid', (_e, req) => {
   if (!req || typeof req !== 'object' || !OPS.has(req.op)) return fail('error: op not allowed');
-  const run = queue.then(() => runBridge(req));
+  const run = queue.then(() => runBridge(req)).then(reply => {
+    if (req.op !== 'status') {
+      const line = JSON.stringify({ at: new Date().toISOString(), live: LIVE, req: { ...req, mappings: req.mappings && req.mappings.length }, reply }) + '\n';
+      fs.appendFile(path.join(app.getPath('userData'), 'bridge.log'), line, () => {});
+    }
+    return reply;
+  });
   queue = run.catch(() => {});
   return run;
 });
