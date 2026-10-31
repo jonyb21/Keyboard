@@ -665,7 +665,8 @@ function trayHtml() {
   else {
     h += '<ul class="chg" aria-label="Staged changes">' + d.map((x, i) => '<li><span><span class="t">' + x.tag + '</span>' + esc(x.text) + '</span><button type="button" class="x" data-act="revone" data-i="' + i + '" aria-label="Revert: ' + esc(x.text) + '">×</button></li>').join('') + '</ul>';
     h += planHtml();
-    if (ui.confirm) h += '<p class="note" role="alert">Send exactly these ' + n + ' change' + (n > 1 ? 's' : '') + ' to the keyboard?</p><button class="btn pri" type="button" data-act="write" data-fid="wr">Confirm send</button><button class="btn q" type="button" data-act="cancel">Cancel</button>';
+    if (ui.confirm && ui.plan && !ui.plan.busy && !ui.plan.out.length && ui.plan.skipped.length) h += '<p class="note" role="alert">None of these can be sent to the keyboard yet.</p><button class="btn q" type="button" data-act="cancel">Close</button>';
+    else if (ui.confirm) h += '<p class="note" role="alert">Send exactly these ' + n + ' change' + (n > 1 ? 's' : '') + ' to the keyboard?</p><button class="btn pri" type="button" data-act="write" data-fid="wr">Confirm send</button><button class="btn q" type="button" data-act="cancel">Cancel</button>';
     else h += '<button class="btn" type="button" data-act="revert">Revert all</button>';
   }
   h += '<div class="trayrow" style="margin-top:6px"><button class="btn q" type="button" id="undo" aria-label="Undo last staged change (Ctrl+Z)">Undo</button><button class="btn q" type="button" id="redo" aria-label="Redo staged change (Ctrl+Y)">Redo</button></div>'
