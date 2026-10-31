@@ -234,7 +234,13 @@ RegisterEncoder(c) {
         Hotkey(hk, MakeEncHandler(d), "On")
         gRegistered.Push(Map("hk", hk, "ctx", ""))
     }
-    RawInputRegister(true)
+    ; Without raw input nothing ever matches the AULA, so remapped directions
+    ; just pass their key through. That is the safe failure; keep the engine up.
+    try {
+        RawInputRegister(true)
+    } catch as e {
+        TrayTip("Encoder remap off: " e.Message, "AULA host layer", 0x2)
+    }
 }
 
 MakeEncHandler(d) {

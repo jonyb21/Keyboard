@@ -6,7 +6,9 @@
 ; blocked or sent, so it is safe beside the CIDOO runtime. Turn the knob left,
 ; right and press it, then read encoder-probe.log next to this script. Each
 ; line names the device and the key (or HID bytes) it reported. Exit from the
-; tray icon. If the knob's keys are not Volume_Down / Volume_Up / Volume_Mute,
+; tray icon. Don't type while it runs. It listens on the keyboard and consumer
+; collections only: a knob that reports as a mouse wheel or vendor page will not
+; show up. Run it from the desktop session, not over SSH. If the knob's keys are not Volume_Down / Volume_Up / Volume_Mute,
 ; change HL_EncoderSources() in core.ahk to match.
 ; ---------------------------------------------------------------------------
 
@@ -29,7 +31,7 @@ if (!DllCall("RegisterRawInputDevices", "Ptr", buf, "UInt", 2, "UInt", sz)) {
 }
 OnMessage(0x00FF, OnRawInput)
 FileAppend("--- probe started " A_Now " ---`n", gLog, "UTF-8")
-TrayTip("Turn and press the AULA knob, then read encoder-probe.log.", "Encoder probe", 0x1)
+TrayTip("Turn and press the AULA knob (don't type), then read encoder-probe.log.", "Encoder probe", 0x1)
 
 OnRawInput(wParam, lParam, *) {
     hdr := 8 + 2 * A_PtrSize
@@ -46,10 +48,9 @@ OnRawInput(wParam, lParam, *) {
     typ := NumGet(b, 0, "UInt")
     if (typ == 1) {
         vk := NumGet(b, hdr + 6, "UShort"), up := NumGet(b, hdr + 2, "UShort") & 1
-        if (vk >= 0xA6 && vk <= 0xB7)           ; browser/volume/media VKs only, never letters
-            line := Format("key vk=0x{:02X} {} ({})", vk, GetKeyName(Format("vk{:02X}", vk)), up ? "up" : "down")
-        else
-            return
+        if (vk == 0x20 || (vk >= 0x30 && vk <= 0x5A))
+            return                              ; letters, digits and Space are never logged
+        line := Format("key vk=0x{:02X} {} ({})", vk, GetKeyName(Format("vk{:02X}", vk)), up ? "up" : "down")
     } else if (typ == 2) {
         n := NumGet(b, hdr, "UInt"), cnt := NumGet(b, hdr + 4, "UInt"), hex := ""
         loop n * cnt

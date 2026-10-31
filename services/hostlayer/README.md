@@ -181,8 +181,10 @@ so a plain hotkey would hijack every keyboard. Instead:
 
 The stock codes (left `Volume_Down`, right `Volume_Up`, press `Volume_Mute`) are
 assumed, not yet measured on this board. To check them, run the read-only probe
-(no hotkeys, no hook, safe beside other keyboard tools), turn and press the
-knob, and read `encoder-probe.log`:
+(no hotkeys, no hook, safe beside other keyboard tools) from the PC's own
+desktop session (not over SSH), turn and press the knob without typing, and
+read `encoder-probe.log`. It listens on the keyboard and consumer collections
+only, so a knob that reported as a mouse wheel would not show up:
 
 ```powershell
 & "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe" services\hostlayer\encoder-probe.ahk
