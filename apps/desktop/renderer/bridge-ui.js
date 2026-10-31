@@ -36,16 +36,19 @@ function sendFor(v) {
   if (v === 'Disabled') return 'Disabled';
   if (MEDIA_SEND[v]) return { media: MEDIA_SEND[v] };
   if (MOUSE_SEND[v]) return { mouse: MOUSE_SEND[v] };
-  if (v === 'Action ring' || /^(AHK|Open|Macro): /.test(v) || SYSTEM.includes(v)) return null;
+  const mm = /^Macro: (.*)$/.exec(v);
+  if (mm) return mm[1] in macIdx ? { macro: macIdx[mm[1]], mode: 'once', count: 1 } : null;
+  if (v === 'Action ring' || /^(AHK|Open): /.test(v) || SYSTEM.includes(v)) return null;
   const plain = hidSendName(v);
   if (plain) return plain;
   return v.includes('+') && comboOk(v) ? { combo: v.split('+').map(t => hidSendName(t.trim()) || t.trim()).join('+') } : null;
 }
+let macIdx = {}, macSending = false;   // macro name -> index in the list macro_apply sends
 const whyNot = v => /^Macro: /.test(v) ? "record the macro's keys first" : 'the keyboard cannot do this';
 
 function remapPlan(L, ops, skipped, onSent, warn) {
   const S = st.layers[L], W = wr.layers[L], name = L === 'fn' ? 'Fn layer: ' : '';
-  if (JSON.stringify(S) === JSON.stringify(W)) return;
+  if (JSON.stringify(S) === JSON.stringify(W) && !(macSending && Object.values(S).some(v => /^Macro: /.test(v)))) return;   // macro indexes may have moved
   const mappings = [], sent = {};
   new Set([...Object.keys(S), ...Object.keys(W)]).forEach(k => {
     const pos = posName(k);
@@ -64,8 +67,27 @@ function remapPlan(L, ops, skipped, onSent, warn) {
   onSent.push(() => { wr.layers[L] = sent; });
 }
 
+function macroPlan(ops, warn, onSent) {
+  const withEv = ms => ms.filter(m => m.events && m.events.length), list = withEv(st.macros);
+  macIdx = {}; list.forEach((m, i) => { macIdx[m.name] = i; });
+  const pack = ms => JSON.stringify(withEv(ms).map(m => ({ name: m.name, events: m.events })));
+  macSending = pack(st.macros) !== pack(wr.macros);
+  if (!macSending) return;
+  const lost = wr.macros.filter(m => !(m.events && m.events.length)).map(m => m.name);
+  if (lost.length) warn.push('Macros are written as one list, so macros with no recorded keys (' + lost.join(', ') + ') will be removed from the keyboard.');
+  const stale = [];   // remaps on a dropped macro keep their old index, so they would fire the wrong macro
+  ['normal', 'fn'].forEach(L => Object.keys(st.layers[L]).forEach(k => {
+    const mm = /^Macro: (.+)$/.exec(st.layers[L][k] || '');
+    if (mm && !(mm[1] in macIdx)) stale.push((L === 'fn' ? 'Fn layer: ' : '') + k + ' (' + mm[1] + ')');
+  }));
+  if (stale.length) warn.push('These remaps point at macros that will be removed, so they will not be updated and may fire the wrong macro: ' + stale.join(', ') + '. Record keys for those macros or change the remaps first.');
+  ops.push({ op: 'macro_apply', macros: list.map(m => ({ name: m.name, events: clone(m.events) })) });
+  onSent.push(() => { wr.macros = clone(list); });
+}
+
 function plan() {
   const ops = [], skipped = [], onSent = [], warn = [];
+  macroPlan(ops, warn, onSent);
   remapPlan('normal', ops, skipped, onSent, warn);
   remapPlan('fn', ops, skipped, onSent, warn);
   if (st.keyResponse !== wr.keyResponse || st.sleep !== wr.sleep || st.fnMode !== wr.fnMode || Object.keys(st.locks).some(k => st.locks[k] !== wr.locks[k])) {
@@ -95,7 +117,7 @@ function plan() {
     if (d.tag === 'Lighting' && /^(Effect|Brightness|Speed) /.test(d.text)) return;
     if (d.tag === 'Screen' && shot && /^(Screen image|Frame delay)/.test(d.text)) return;
     if (d.tag === 'Screen' && d.text.startsWith('Frame delay')) return skipped.push(d.text + ' (choose an image to send it with the delay)');
-    if (d.tag === 'Macros') return skipped.push(d.tag + ': ' + d.text + " (record the macro's keys first)");
+    if (d.tag === 'Macros') return d.ev || d.text.startsWith('Edit ') ? (macSending ? 0 : skipped.push(d.tag + ': ' + d.text)) : skipped.push(d.tag + ': ' + d.text + (d.text.startsWith('Add') ? " (record the macro's keys first)" : ' (its keys were never read from the board)'));
     skipped.push(d.tag + ': ' + d.text);
   });
   return { ops, skipped, onSent, warn };

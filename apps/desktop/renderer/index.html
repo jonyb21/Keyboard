@@ -207,6 +207,11 @@ html[data-motion="on"] .khud{transition:opacity .15s,visibility .15s}
 .row2{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px}
 input[type=range]{width:100%;height:28px;accent-color:var(--acc);margin:6px 0 0}
 input[type=text]{width:100%;min-height:36px;padding:3px 12px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg)}
+input[type=number]{width:104px;min-height:36px;padding:3px 10px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg)}
+.cap{min-height:64px;padding:12px 14px;border-radius:12px;border:1.5px dashed var(--edge);display:flex;align-items:center;justify-content:center;text-align:center;user-select:none}
+.cap[data-on="true"]{border-style:solid;border-color:var(--acc);color:var(--acc-ink)}
+.evl{max-height:260px;overflow:auto;margin-top:10px}
+.evl li{flex-wrap:wrap;padding:2px 0}
 select{min-height:36px;padding:3px 10px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg);max-width:100%}
 .laysel{min-height:44px;min-width:140px;padding:4px 36px 4px 14px;border-radius:999px;font-weight:600;cursor:pointer;appearance:none;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b8f43c' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;border-color:var(--acc);color:var(--acc-ink)}
 .fld{margin-top:12px;max-width:420px}
@@ -480,8 +485,12 @@ function diffs() {
   f('Host layer (this PC)', 'Tap window ' + wr.timing.tap + ' -> ' + st.timing.tap + ' ms', st.timing.tap === wr.timing.tap, () => st.timing.tap = wr.timing.tap);
   f('Host layer (this PC)', 'Hold after ' + wr.timing.hold + ' -> ' + st.timing.hold + ' ms', st.timing.hold === wr.timing.hold, () => st.timing.hold = wr.timing.hold);
   const wn = wr.macros.map(m => m.name), sn = st.macros.map(m => m.name);
-  st.macros.filter(m => !wn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Add macro ' + m.name + ' (' + m.steps + ' actions)', rev: () => { st.macros = st.macros.filter(x => x.name !== m.name); } }));
-  wr.macros.filter(m => !sn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Remove macro ' + m.name, rev: () => { st.macros.push(clone(m)); } }));
+  st.macros.filter(m => !wn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Add macro ' + m.name + ' (' + m.steps + ' actions)',ev: !!(m.events && m.events.length), rev: () => { st.macros = st.macros.filter(x => x.name !== m.name); } }));
+  wr.macros.filter(m => !sn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Remove macro ' + m.name,ev: !!(m.events && m.events.length), rev: () => { st.macros.push(clone(m)); } }));
+  st.macros.filter(m => wn.includes(m.name)).forEach(m => {
+    const w = wr.macros.find(x => x.name === m.name);
+    if (JSON.stringify(m.events || []) !== JSON.stringify(w.events || [])) o.push({ tag: 'Macros', text: 'Edit macro ' + m.name + ' (' + (w.events || []).length + ' -> ' + (m.events || []).length + ' events)', rev: () => { const x = st.macros.find(y => y.name === m.name); if (x) { if (w.events) x.events = clone(w.events); else delete x.events; x.steps = w.steps; } } });
+  });
   return o;
 }
 const macUsed = () => BASE_USED + st.macros.reduce((a, m) => a + m.steps, 0) - BASE_STEPS;
@@ -777,11 +786,96 @@ function pScreen() {
     + (ui.upErr ? '<p class="err" role="alert">' + esc(ui.upErr) + '</p>' : '<p class="small muted">Scaled to 128×128 on write.</p>') + '</div>'
     + '<div><h4>Library</h4><ul class="list">' + D.lcd.library.map(it => '<li><span>' + esc(it.name) + ' <span class="muted small mono">' + it.frames + '</span></span><button class="opt" type="button" data-act="lib" data-v="' + esc(it.name) + '" aria-pressed="' + (c.current === it.name) + '">' + (c.current === it.name ? 'In use' : 'Use') + '</button></li>').join('') + '</ul></div></div>';
 }
+/* ---------- macro recording ---------- */
+// KeyboardEvent.code -> names macros.py / remap.py accept (F13..F24 only by hex)
+const MAC_CODE = { Escape: 'Esc', Backquote: 'Backtick', Minus: 'Minus', Equal: 'Equal', BracketLeft: 'LBracket', BracketRight: 'RBracket', Backslash: 'Backslash', Semicolon: 'Semicolon', Quote: 'Quote', Comma: 'Comma', Period: 'Period', Slash: 'Slash',
+  Enter: 'Enter', Tab: 'Tab', Space: 'Space', Backspace: 'Backspace', CapsLock: 'CapsLock', ArrowLeft: 'Left', ArrowDown: 'Down', ArrowUp: 'Up', ArrowRight: 'Right',
+  PageUp: 'PageUp', PageDown: 'PageDown', Delete: 'Delete', End: 'End', Home: 'Home', Insert: 'Insert', PrintScreen: 'PrintScreen', ScrollLock: 'ScrollLock', Pause: 'Pause', NumLock: 'NumLock', ContextMenu: 'Menu',
+  ShiftLeft: 'Shift_L', ShiftRight: 'Shift_R', ControlLeft: 'Ctrl_L', ControlRight: 'Ctrl_R', AltLeft: 'Alt_L', AltRight: 'Alt_R', MetaLeft: 'Win_L', MetaRight: 'Win_R',
+  NumpadDivide: 'KeypadSlash', NumpadMultiply: 'KeypadAsterisk', NumpadSubtract: 'KeypadMinus', NumpadAdd: 'KeypadPlus', NumpadEnter: 'KeypadEnter', NumpadDecimal: 'KeypadDot' };
+function macCode(code) {
+  if (MAC_CODE[code]) return MAC_CODE[code];
+  let m;
+  if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
+  if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+  if ((m = /^Numpad(\d)$/.exec(code))) return 'Keypad' + m[1];
+  if ((m = /^F(\d+)$/.exec(code)) && +m[1] >= 1 && +m[1] <= 24) return +m[1] <= 12 ? code : '0x' + (0x68 + +m[1] - 13).toString(16).toUpperCase();
+  return null;
+}
+const MAC_MOUSE = ['Left', 'Middle', 'Right'];
+const macKeyLabel = n => /^0x(6[89A-F]|7[0-3])$/i.test(n) ? 'F' + (parseInt(n, 16) - 0x68 + 13) : String(n).replace('_L', ' (left)').replace('_R', ' (right)');
+function macEvLabel(ev) {
+  const [k, v] = Object.entries(ev)[0];
+  return k === 'down' || k === 'up' ? macKeyLabel(v) + ' ' + k : k === 'delay' ? v + ' ms' : v + ' mouse ' + (k === 'mouse_down' ? 'down' : 'up');
+}
+const macCur = () => ui.macSel != null ? st.macros[ui.macSel] : null;
+const macActive = () => !!(ui.macRec && ui.panel === 'mac' && macCur());
+function macPush(evs) {
+  const m = macCur();
+  if (macUsed() + evs.length > D.macros.capacityActions) { macStop('Macro memory is full, so recording stopped.'); return; }
+  m.events = (m.events || []).concat(evs); m.steps = m.events.length; save(); render();
+}
+function macInput(ev) {
+  const t = performance.now(), gap = ui.macLast == null ? 0 : Math.min(65535, Math.round(t - ui.macLast));
+  ui.macLast = t;
+  macPush(gap >= 10 ? [{ delay: gap }, ev] : [ev]);
+}
+const macFocus = f => { const n = document.querySelector('[data-fid="' + f + '"]'); if (n && !n.disabled) n.focus({ preventScroll: true }); };   // disabled/removed controls lose focus on re-render
+function macStop(note) {
+  if (!ui.macRec) return;
+  const up = Object.values(ui.macHeld || {}).map(n => ({ up: n })).concat(Object.keys(ui.macMouse || {}).map(b => ({ mouse_up: b })));
+  const m = macCur();
+  if (m && up.length) { m.events = (m.events || []).concat(up); m.steps = m.events.length; }   // never leave a key stuck down
+  ui.macRec = false; ui.macHeld = {}; ui.macMouse = {}; ui.macLast = null; ui.macNote = note || '';
+  save(); render(); macFocus('mrec');
+}
+function macKey(e, down) {
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (e.repeat) return;
+  if (down && e.code === 'Escape') return macStop();
+  const n = macCode(e.code);
+  if (down) {
+    if (!n) { ui.macNote = 'The key "' + (e.key.length === 1 ? e.key : e.code) + '" has no matching key on this keyboard, so it was not recorded.'; return render(); }
+    ui.macNote = ''; ui.macHeld[e.code] = n; macInput({ down: n });
+  } else if (ui.macHeld[e.code]) { const k = ui.macHeld[e.code]; delete ui.macHeld[e.code]; macInput({ up: k }); }
+}
+document.addEventListener('mousedown', e => {
+  if (!macActive() || !e.target.closest('#macarea')) return;
+  e.preventDefault();
+  const b = MAC_MOUSE[e.button];
+  if (!b) { ui.macNote = 'That mouse button is not supported (Left, Middle and Right only).'; return render(); }
+  ui.macNote = ''; ui.macMouse[b] = 1; macInput({ mouse_down: b });
+}, true);
+document.addEventListener('mouseup', e => {
+  const b = MAC_MOUSE[e.button];
+  if (!macActive() || !b || !ui.macMouse[b]) return;
+  e.preventDefault(); delete ui.macMouse[b]; macInput({ mouse_up: b });
+}, true);
+document.addEventListener('contextmenu', e => { if (macActive() && e.target.closest('#macarea')) e.preventDefault(); }, true);
+
+function macEditor() {
+  const m = macCur();
+  if (!m) return '<p class="muted small">Choose Edit on a macro to record its keys.</p>';
+  const evs = m.events || [], rec = macActive();
+  return '<h4>Keys for ' + esc(m.name) + '</h4><div class="acts" style="margin-top:0">'
+    + '<button class="btn pri" type="button" data-act="macrec" data-fid="mrec"' + (rec ? ' disabled' : '') + '>Record</button>'
+    + '<button class="btn" type="button" data-act="macstop" data-fid="mstop"' + (rec ? '' : ' disabled') + '>Stop</button>'
+    + '<button class="btn q" type="button" data-act="macclear" data-fid="mclr"' + (rec || !evs.length ? ' disabled' : '') + '>Clear</button></div>'
+    + '<div class="fld"><div id="macarea" class="cap" role="group" aria-label="Mouse capture area" data-on="' + rec + '">' + (rec ? 'Recording. Press keys, or click here for mouse buttons. Esc stops.' : 'Press Record, then click here to add mouse buttons.') + '</div></div>'
+    + '<p class="note" role="status" style="margin-top:8px">' + (rec ? 'Recording ' + esc(m.name) + '… ' : '') + esc(ui.macNote || '') + '</p>'
+    + (evs.length ? '<ul class="list evl" tabindex="0" aria-label="Events in ' + esc(m.name) + '">' + evs.map((ev, j) => {
+      const d = ev.delay !== undefined;
+      return '<li><span class="mono small">' + (j + 1) + '. ' + (d ? 'Wait' : esc(macEvLabel(ev))) + '</span><span style="display:flex;align-items:center;gap:8px">'
+        + (d ? '<input type="number" min="10" max="65535" step="1" value="' + ev.delay + '" data-mevd="' + j + '" data-fid="mevd' + j + '" aria-label="Delay in milliseconds, event ' + (j + 1) + '"><span class="muted small">ms</span>' : '')
+        + '<button class="btn q" type="button" data-act="macevdel" data-e="' + j + '" data-fid="mevx' + j + '" aria-label="Delete event ' + (j + 1) + ', ' + esc(macEvLabel(ev)) + '">Delete</button></span></li>';
+    }).join('') + '</ul>' : '<p class="muted small">No keys recorded yet.</p>');
+}
 function pMac() {
   const cap = D.macros.capacityActions, u = macUsed(), over = u > cap;
   return '<div class="cols"><div><h4>Macro memory</h4>' + N('mu', u, 'xl') + '<span class="mono muted"> / ' + cap + ' actions</span><div class="bar" style="margin-top:12px" role="img" aria-label="' + u + ' of ' + cap + ' actions used"><i style="width:' + Math.min(100, u / cap * 100) + '%"></i></div>'
-    + (over ? '<p class="err" role="alert">Over capacity: remove a macro before writing.</p>' : '') + '<div class="acts"><button class="btn" type="button" data-act="macadd" data-fid="madd">Add macro (4 actions)</button></div></div>'
-    + '<div style="grid-column:span 2">' + (st.macros.length ? '<ul class="list">' + st.macros.map((m, i) => '<li><span>' + esc(m.name) + ' <span class="muted small">' + (m.key === 'none' ? 'no trigger' : esc(m.key)) + '</span></span><span style="display:flex;align-items:center;gap:10px"><span class="muted small mono">' + m.steps + ' steps</span><button class="btn q" type="button" data-act="macdel" data-i="' + i + '" aria-label="Remove macro ' + esc(m.name) + '">Remove</button></span></li>').join('') + '</ul>' : '<p class="muted">No macros on the board.</p>') + '</div></div>';
+    + (over ? '<p class="err" role="alert">Over capacity: remove a macro before writing.</p>' : '') + '<div class="acts"><button class="btn" type="button" data-act="macadd" data-fid="madd">Add macro</button></div></div>'
+    + '<div style="grid-column:1/-1">' + (st.macros.length ? '<ul class="list">' + st.macros.map((m, i) => '<li style="flex-wrap:wrap"><span>' + esc(m.name) + ' <span class="muted small">' + (m.key === 'none' ? 'no trigger' : esc(m.key)) + '</span></span><span style="display:flex;align-items:center;gap:10px"><span class="muted small mono">' + m.steps + ' steps</span><button class="btn" type="button" data-act="macedit" data-i="' + i + '" data-fid="medit' + i + '" aria-pressed="' + (ui.macSel === i) + '" aria-label="Edit macro ' + esc(m.name) + '">Edit</button><button class="btn q" type="button" data-act="macdel" data-i="' + i + '" aria-label="Remove macro ' + esc(m.name) + '">Remove</button></span></li>').join('') + '</ul>' : '<p class="muted">No macros on the board.</p>') + '</div>'
+    + '<div style="grid-column:1/-1">' + macEditor() + '</div></div>';
 }
 function pSet() {
   const lv = D.settings.keyResponse.levels, k = st.keyResponse, o = lv[k - 1];
@@ -823,7 +917,7 @@ document.addEventListener('click', e => {
   else if (a === 'key') { if (b.dataset.k === 'Fn') { ui.sel = 'Fn'; ui.panel = 'keys'; ui.ed = null; render(); } else { selectKey(b.dataset.k); if (b.dataset.trig && ui.sel) { edFor(ui.sel, b.dataset.trig); render(); } } }
   else if (a === 'close') { ui.sel = null; ui.ed = null; render(); }
   else if (a === 'showmap') { ui.showMap = !ui.showMap; render(); }
-  else if (a === 'mode') { ui.confirm = false; ui.panel = ui.panel === v ? null : v; if (ui.panel !== 'keys') { ui.sel = null; ui.ed = null; } render(); }
+  else if (a === 'mode') { macStop(); ui.confirm = false; ui.panel = ui.panel === v ? null : v; if (ui.panel !== 'keys') { ui.sel = null; ui.ed = null; } render(); }
   else if (a === 'etype') { ui.ed.type = v; ui.ed.val = ''; ui.ed.err = ''; ui.ed.slots = null; ui.ed.icons = null; ui.iconFor = -1; render(); }
   else if (a === 'apply') applyEd();
   else if (a === 'trig') { edFor(ui.sel, v); render(); }
@@ -835,8 +929,13 @@ document.addEventListener('click', e => {
   else if (a === 'rule') commit(() => st.live.rules[v] = !st.live.rules[v]);
   else if (a === 'upload') $('file').click();
   else if (a === 'lib') { ui.img = null; ui.file = null; ui.url = ''; ui.upErr = ''; const it = D.lcd.library.find(x => x.name === v); commit(() => { st.lcd.current = it.name; st.lcd.frames = it.frames; }); }
-  else if (a === 'macadd') { let n = 1; while (st.macros.some(m => m.name === 'Macro ' + n)) n++; if (macUsed() + 4 > D.macros.capacityActions) return toast('Not enough macro capacity'); commit(() => st.macros.push({ name: 'Macro ' + n, steps: 4, key: 'none' })); }
-  else if (a === 'macdel') commit(() => st.macros.splice(+b.dataset.i, 1));
+  else if (a === 'macadd') { let n = 1; while (st.macros.some(m => m.name === 'Macro ' + n)) n++; if (macUsed() >= D.macros.capacityActions) return toast('Not enough macro capacity'); ui.macRec = false; ui.macNote = ''; ui.macSel = st.macros.length; commit(() => st.macros.push({ name: 'Macro ' + n, steps: 0, key: 'none', events: [] })); }
+  else if (a === 'macedit') { ui.macRec = false; ui.macNote = ''; ui.macSel = +b.dataset.i; render(); }
+  else if (a === 'macdel') { ui.macRec = false; ui.macSel = null; ui.macNote = ''; commit(() => st.macros.splice(+b.dataset.i, 1)); }
+  else if (a === 'macrec') { if (macUsed() >= D.macros.capacityActions) return toast('Not enough macro capacity'); commit(() => {}); ui.macRec = true; ui.macHeld = {}; ui.macMouse = {}; ui.macLast = null; ui.macNote = ''; render(); macFocus('mstop'); }
+  else if (a === 'macstop') macStop();
+  else if (a === 'macclear') { ui.macNote = ''; commit(() => { const m = macCur(); m.events = []; m.steps = 0; }); macFocus('mrec'); }
+  else if (a === 'macevdel') { const j = +b.dataset.e; commit(() => { const m = macCur(); m.events.splice(j, 1); m.steps = m.events.length; }); const m = macCur(); macFocus(j < m.events.length ? 'mevx' + j : m.events.length ? 'mevx' + (j - 1) : 'mrec'); }
   else if (a === 'kr') commit(() => st.keyResponse += +v);
   else if (a === 'sleep') commit(() => st.sleep = v);
   else if (a === 'lock') commit(() => st.locks[v] = !st.locks[v]);
@@ -851,7 +950,7 @@ document.addEventListener('click', e => {
 document.addEventListener('pointerdown', e => {
   if (ui.panel === null || !e.target.closest) return;
   if (e.target.closest('#dockbox, #dock, #maps, #toast, #lcdhit, #knob, #aring, [data-act="key"], [data-act="showmap"], [data-act="layer"]')) return;
-  ui.panel = null; ui.sel = null; ui.ed = null; ui.confirm = false; render();
+  macStop(); ui.panel = null; ui.sel = null; ui.ed = null; ui.confirm = false; render();
 });
 function editLcd() { ui.panel = 'screen'; ui.sel = null; ui.ed = null; ui.confirm = false; render(); $('file').click(); }
 document.addEventListener('dblclick', e => { if (e.target.closest && e.target.closest('#lcdhit')) { e.preventDefault(); editLcd(); } });
@@ -960,6 +1059,7 @@ function ring(lab, held) {
   setTimeout(() => r.remove(), document.documentElement.dataset.motion === 'on' ? 600 : 260);
 }
 document.addEventListener('keydown', e => {
+  if (macActive()) return macKey(e, true);
   if (ui.rec && ui.ed) {
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.code === 'Escape' && !recMod) { ui.rec = false; return render(); }
@@ -977,6 +1077,7 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 document.addEventListener('keyup', e => {
+  if (macActive()) return macKey(e, false);
   if (ui.rec && ui.ed) {
     e.preventDefault(); e.stopImmediatePropagation();
     if (recMod === e.code) recordAs('Key', SENDNAME[e.code]);   // a lone modifier, e.g. Right Ctrl
@@ -995,6 +1096,7 @@ document.addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.layer !== undefined) { ui.layer = e.target.value; ui.sel = null; ui.ed = null; return render(); }
   const t = e.target;
   if (t.dataset.ed) { ui.ed.val = t.value; }
+  if (t.dataset.mevd !== undefined) { const n = Math.round(+t.value), m = macCur(), j = +t.dataset.mevd; if (m && m.events[j] && n >= 10 && n <= 65535 && n !== m.events[j].delay) commit(() => { m.events[j].delay = n; }); else render(); }
   if (t.dataset.timing) { const k = t.dataset.timing, n = Math.round(+t.value); if (n > 0 && n !== st.timing[k]) commit(() => st.timing[k] = n); }
   if (t.dataset.kname !== undefined) { const k = t.dataset.kname, v = t.value.trim(); if (v !== (st.names[k] || '')) commit(() => { if (v) st.names[k] = v; else delete st.names[k]; }); }
   if (t.dataset.rng) { const id = t.dataset.rng, n = +t.value; commit(() => { if (id === 'rb') st.light.brightness = n; else if (id === 'rs') st.light.speed = n; else st.lcd.delay = n; }); }
