@@ -152,6 +152,17 @@ HL_KeyHotkey() {
     return m
 }
 
+; Encoder direction -> the key the AULA knob emits for it (canonical names).
+; shortcut: assumed stock codes (knob = volume keys), not yet confirmed on the
+; board; run encoder-probe.ahk and change this table if they differ.
+HL_EncoderSources() {
+    static m := ""
+    if (IsObject(m))
+        return m
+    m := Map("left", "volume_down", "right", "volume_up", "press", "volume_mute")
+    return m
+}
+
 HL_Builtins() {
     static m := ""
     if (IsObject(m))
@@ -379,7 +390,7 @@ HL_ValidateConfig(cfg) {
         errs.Push("root: config must be a JSON object")
         return errs
     }
-    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "appGroups", "bindings", "layers"], "root", errs)
+    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "appGroups", "bindings", "layers", "encoder"], "root", errs)
 
     if (!cfg.Has("schemaVersion") || cfg["schemaVersion"] !== 1)
         errs.Push("root.schemaVersion: must be 1")
@@ -491,6 +502,26 @@ HL_ValidateConfig(cfg) {
         }
     }
 
+    ; ---- encoder ---------------------------------------------------------
+    if (cfg.Has("encoder")) {
+        E := cfg["encoder"]
+        if (!HL_IsMap(E)) {
+            errs.Push("root.encoder: must be an object")
+        } else {
+            HL_CheckUnknownKeys(E, ["note", "devices", "left", "right", "press"], "encoder", errs)
+            if (!E.Has("devices") || !HL_IsArray(E["devices"]) || E["devices"].Length == 0) {
+                errs.Push("encoder.devices: required, a non-empty array like VID_0C45&PID_800A")
+            } else {
+                for _, d in E["devices"]
+                    if (Type(d) !== "String" || !RegExMatch(d, "i)^VID_[0-9A-F]{4}&PID_[0-9A-F]{4}$"))
+                        errs.Push("encoder.devices: every entry must look like VID_0C45&PID_800A")
+            }
+            for _, dir in ["left", "right", "press"]
+                if (E.Has(dir))
+                    HL_ValidateAction(E[dir], "encoder." dir, cfg, errs)
+        }
+    }
+
     return errs
 }
 
@@ -588,7 +619,29 @@ HL_CompileConfig(cfg) {
         toggles.Push(ln)
     c["toggleLayers"] := HL_SortStrings(toggles)
 
+    ; Encoder: only directions remapped away from the knob's own key get an
+    ; entry, so a stock (or absent) encoder block registers nothing at all.
+    enc := Map()
+    if (cfg.Has("encoder")) {
+        E := cfg["encoder"]
+        for _, dir in ["left", "right", "press"] {
+            if (!E.Has(dir))
+                continue
+            src := HL_EncoderSources()[dir]
+            act := HL_CompileAction(E[dir])
+            if (act["kind"] == "send" && act["send"] == HL_KeySend()[src])
+                continue
+            enc[dir] := Map("hk", HL_KeySendName(src), "src", HL_KeySend()[src], "action", act)
+        }
+    }
+    c["encoder"] := Map("devices", cfg.Has("encoder") ? cfg["encoder"]["devices"] : [], "dirs", enc)
+
     return c
+}
+
+; "{Volume_Up}" -> "Volume_Up": the hotkey name for a KeySend token.
+HL_KeySendName(key) {
+    return SubStr(HL_KeySend()[key], 2, -1)
 }
 
 ; Read + parse + validate + compile. Throws an Error whose .Extra holds the

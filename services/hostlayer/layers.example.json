@@ -74,6 +74,14 @@
     }
   },
 
+  "encoder": {
+    "note": "The knob. Only directions that differ from stock (left Volume_Down, right Volume_Up, press Volume_Mute) are hooked, and only the AULA's own knob is remapped: the same key from any other keyboard passes through. Any action kind works here.",
+    "devices": ["VID_0C45&PID_800A", "VID_05AC&PID_024F"],
+    "left": { "send": "Volume_Down" },
+    "right": { "send": "Volume_Up" },
+    "press": { "send": "Media_Play_Pause" }
+  },
+
   "layers": {
     "num": {
       "type": "toggle",

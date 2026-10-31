@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 # ---------------------------------------------------------------------------
 # Lookup tables  (core.ahk: HL_ModCanon / HL_ModPrefix / HL_ModOrder)
@@ -42,6 +43,10 @@ PROTECTED_KEYS = {
 }
 
 BUILTINS = {"altTabTap", "altTabBrowse"}
+
+# core.ahk: HL_EncoderSources
+ENCODER_SOURCES = {"left": "volume_down", "right": "volume_up", "press": "volume_mute"}
+ENCODER_DIRS = ["left", "right", "press"]
 
 
 def _build_key_send():
@@ -356,6 +361,7 @@ ROOT_ALLOWED = [
     "appGroups",
     "bindings",
     "layers",
+    "encoder",
 ]
 
 
@@ -474,6 +480,24 @@ def validate_config(cfg):
             if "hold" in B:
                 validate_action(B["hold"], where + ".hold", cfg, errs)
 
+    # ---- encoder ----
+    if "encoder" in cfg:
+        E = cfg["encoder"]
+        if not isinstance(E, dict):
+            errs.append("root.encoder: must be an object")
+        else:
+            _check_unknown_keys(E, ["note", "devices"] + ENCODER_DIRS, "encoder", errs)
+            devs = E.get("devices")
+            if not isinstance(devs, list) or not devs:
+                errs.append("encoder.devices: required, a non-empty array like VID_0C45&PID_800A")
+            else:
+                for d in devs:
+                    if not isinstance(d, str) or not re.match(r"(?i)^VID_[0-9A-F]{4}&PID_[0-9A-F]{4}$", d):
+                        errs.append("encoder.devices: every entry must look like VID_0C45&PID_800A")
+            for d in ENCODER_DIRS:
+                if d in E:
+                    validate_action(E[d], "encoder." + d, cfg, errs)
+
     return errs
 
 
@@ -549,6 +573,18 @@ def compile_config(cfg):
     c["layerKeys"] = layer_keys
     c["rawSend"] = {k: KEY_SEND[k] for k in layer_keys}
     c["toggleLayers"] = sorted(layers.keys())
+
+    enc = {}
+    E = cfg.get("encoder", {})
+    for d in ENCODER_DIRS:
+        if d not in E:
+            continue
+        src = ENCODER_SOURCES[d]
+        act = compile_action(E[d])
+        if act["kind"] == "send" and act["send"] == KEY_SEND[src]:
+            continue
+        enc[d] = {"hk": KEY_SEND[src][1:-1], "src": KEY_SEND[src], "action": act}
+    c["encoder"] = {"devices": E.get("devices", []), "dirs": enc}
     return c
 
 

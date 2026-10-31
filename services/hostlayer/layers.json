@@ -108,6 +108,14 @@
     }
   },
 
+  "encoder": {
+    "note": "The knob, matched to the AULA by device ID (wired and 2.4G dongle). Stock mapping, so nothing is hooked. Change a direction to remap it.",
+    "devices": ["VID_0C45&PID_800A", "VID_05AC&PID_024F"],
+    "left": { "send": "Volume_Down" },
+    "right": { "send": "Volume_Up" },
+    "press": { "send": "Volume_Mute" }
+  },
+
   "layers": {
     "num": {
       "type": "toggle",

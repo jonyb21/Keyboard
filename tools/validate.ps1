@@ -90,6 +90,7 @@ Write-Head "AutoHotkey syntax gate"
 foreach ($f in @(
     "core.ahk",
     "engine.ahk",
+    "encoder-probe.ahk",
     "lib\jsonparse.ahk",
     "tests\hotkeynames.ahk",
     "tests\probe.ahk"
