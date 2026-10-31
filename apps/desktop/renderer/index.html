@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en" data-motion="on">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AULA F75 Max</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:oklch(0.14 0.008 125);
+  --panel:oklch(0.185 0.01 125);
+  --raise:oklch(0.235 0.012 125);
+  --line:oklch(0.32 0.014 125);
+  --edge:oklch(0.52 0.02 125);
+  --ink:oklch(0.96 0.008 125);
+  --muted:oklch(0.76 0.015 125);
+  --acc:oklch(0.87 0.2 125);
+  --acc-hi:oklch(0.93 0.18 125);
+  --acc-dim:oklch(0.31 0.075 125);
+  --acc-ink:oklch(0.89 0.18 125);
+  --on-acc:oklch(0.17 0.03 125);
+  --err:oklch(0.77 0.13 25);
+  --sans:"Sora","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --mono:"DM Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--sans)}
+h1,h2,h3,p{margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:14px}
+.shell{max-width:1100px;margin:0 auto;padding:28px 20px 60px;display:flex;flex-direction:column;align-items:center}
+.top{text-align:center}
+.top h1{font-size:40px;line-height:1.1;font-weight:700;letter-spacing:-.03em}
+.top h1 .mx{color:var(--acc)}
+.top .dev{font-size:14px;color:var(--muted);margin-top:4px}
+.stage{width:100%;padding:24px 0 6px}
+.bwrap{overflow-x:auto;overflow-y:hidden;padding:44px 0 80px;margin:-12px 0 -48px}
+@media(min-width:1000px){.bwrap{margin:-12px -160px -48px;padding:44px 160px 80px;overflow-x:hidden}}
+html,body{overflow-x:clip}
+.fw{position:relative;width:100%;min-width:660px;max-width:1000px;margin:0 auto}
+.gl{position:absolute;inset:34% 6% 2% 6%;z-index:0;border-radius:80px;pointer-events:none;opacity:.8;filter:blur(30px) saturate(1.3);background:conic-gradient(from var(--a),#ff3b3b,#ffb02e,#e5ff3a,#3bff7a,#2ee6ff,#4a6bff,#b13bff,#ff3b9a,#ff3b3b)}
+.float{position:relative;z-index:1;width:100%;transform-origin:50% 60%}
+.board{position:relative;width:100%;aspect-ratio:1000/400}
+.bimg{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none}
+#hot{position:absolute;inset:0}
+.redit{display:grid;grid-template-columns:168px minmax(0,1fr);gap:16px;align-items:center;margin-top:4px}
+.fld:has(.redit){max-width:none}
+.rmini{position:relative;width:168px;aspect-ratio:1}
+.rmini .band{position:absolute;inset:0;border-radius:50%;background:oklch(0.2 0.006 255/.5);border:1px solid oklch(1 0 0/.08);-webkit-mask:radial-gradient(circle,transparent 24.5%,#000 25%);mask:radial-gradient(circle,transparent 24.5%,#000 25%)}
+.rmini .rmb{position:absolute;width:17%;aspect-ratio:1;min-width:28px;transform:translate(-50%,-50%);display:grid;place-items:center;padding:0;border-radius:50%;border:1px solid oklch(1 0 0/.1);background:oklch(0.27 0.008 125);color:var(--ink);cursor:pointer}
+.rmini .rmb svg{width:55%;height:55%}
+.rmini .rmb.empty{background:transparent;border-style:dashed;color:var(--muted)}
+.rmini .rmb.on{background:var(--acc);border-color:var(--acc);color:#1a2208}
+.rmini .hub{position:absolute;left:50%;top:50%;width:42%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:oklch(0.17 0.006 255/.6);border:1px solid oklch(1 0 0/.08);display:grid;place-items:center;padding:4px;text-align:center;font:600 12px/1.2 var(--sans);color:var(--ink);overflow-wrap:anywhere;pointer-events:none}
+.rlist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+.rlist li{display:grid;grid-template-columns:16px 36px minmax(0,1fr);align-items:center;gap:6px}
+.ricon{display:grid;place-items:center;width:36px;height:36px;padding:0;border-radius:50%;border:1.5px solid var(--edge);background:var(--bg);color:var(--ink);cursor:pointer}
+.ricon svg,.rpi svg{width:16px;height:16px}
+.ricon.set{border-color:var(--acc)}
+.ricon[aria-expanded="true"]{background:var(--acc);border-color:var(--acc);color:#1a2208}
+.rpick{margin-top:10px;display:grid;gap:6px}
+.rpgrid{display:flex;flex-wrap:wrap;gap:6px}
+.rpi{display:grid;place-items:center;min-width:36px;height:36px;padding:0 10px;border-radius:18px;border:1.5px solid var(--edge);background:var(--bg);color:var(--ink);font:500 12px var(--sans);cursor:pointer}
+.rpi.on{border-color:var(--acc);color:var(--acc)}
+.rlist .rdir{display:grid;place-items:center;height:36px;font:600 12px var(--mono);color:var(--muted)}
+.rlist li.on .rdir{color:var(--acc)}
+.rlist .rslot{height:36px;min-height:36px;font-size:13px;padding:3px 10px}
+@media (max-width:560px){.redit{grid-template-columns:1fr;justify-items:center}.rlist{grid-template-columns:1fr;width:100%}}
+#aring{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:oklch(0.12 0.005 255/.55)}
+#aring .wheel{position:relative;width:min(86vw,360px);aspect-ratio:1}
+#aring .band{position:absolute;inset:0;border-radius:50%;background:oklch(0.2 0.006 255/.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid oklch(1 0 0/.08);box-shadow:0 24px 60px rgb(0 0 0/.55);-webkit-mask:radial-gradient(circle,transparent 24.5%,#000 25%);mask:radial-gradient(circle,transparent 24.5%,#000 25%)}
+#aring .rs{position:absolute;width:17%;aspect-ratio:1;min-width:44px;transform:translate(-50%,-50%);display:grid;place-items:center;padding:0;border-radius:50%;border:1px solid oklch(1 0 0/.1);background:oklch(0.27 0.008 125);color:var(--ink);cursor:pointer}
+#aring .rs svg{width:44%;height:44%}
+#aring .rs.on{background:var(--acc);border-color:var(--acc);color:#1a2208}
+#aring .rs.empty{background:transparent;border-style:dashed;color:var(--muted)}
+#aring .rs.empty.on{background:oklch(0.87 0.2 125/.18);color:var(--acc);border-color:var(--acc)}
+#aring .rs:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+html[data-motion="on"] #aring .rs{transition:transform .14s ease-out,background-color .12s}
+html[data-motion="on"] #aring .rs.on{transform:translate(-50%,-50%) scale(1.12)}
+#aring .hub{position:absolute;left:50%;top:50%;width:42%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:oklch(0.17 0.006 255/.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid oklch(1 0 0/.08);display:grid;place-content:center;gap:4px;padding:8px;text-align:center;pointer-events:none}
+#aring .hub b{font:600 15px/1.2 var(--sans);color:var(--ink);overflow-wrap:anywhere}
+#aring .hub span{font:500 11px/1.2 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+html[data-motion="on"] #aring .wheel{animation:ringin .16s ease-out}
+@keyframes ringin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.ring{position:absolute;border:2px solid var(--acc);border-radius:8px;pointer-events:none;box-shadow:0 0 10px oklch(0.87 0.2 125/.6);z-index:4}
+html[data-motion="on"] .ring{animation:ringout .55s ease-out forwards}
+@keyframes ringout{from{transform:scale(1);opacity:1}to{transform:scale(1.45);opacity:0}}
+.key.down{background:oklch(0.87 0.2 125/.22)}
+.rec{display:flex;align-items:center;gap:8px;margin-top:8px}
+.rec .btn{flex:none;white-space:nowrap}
+.opt.trg{position:relative}
+.tdot{position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--acc)}
+.tm{display:inline-flex;align-items:center;gap:6px;margin:6px 12px 0 0;white-space:nowrap}
+.tm input{width:76px;height:36px;padding:3px 8px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg)}
+textarea.ahk{width:100%;min-height:96px;padding:8px 12px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg);color:var(--ink);font:500 13px/1.45 var(--mono);resize:vertical}
+.rec .btn[aria-pressed="true"]{border-color:var(--acc);color:var(--acc-ink)}
+.knob{position:absolute;left:85.2%;top:9.25%;width:5.2%;height:13%;min-width:24px;min-height:24px;padding:0;border:2px solid transparent;border-radius:50%;background:transparent;cursor:grab;z-index:3;--rot:0deg}
+.knob:hover{border-color:var(--edge)}
+.knob:focus-visible,.knob.sel,.knob.hl{border-color:var(--acc);outline:none}
+.knob .kdial{position:absolute;inset:18%;border-radius:50%;transform:rotate(var(--rot))}
+.knob.down .kdial{transform:rotate(var(--rot)) scale(.94)}
+.khud{position:absolute;left:76%;top:24%;min-width:120px;padding:5px 10px;border-radius:8px;border:1px solid var(--edge);background:var(--panel);font:500 13px/1.5 var(--mono);color:var(--ink);white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;z-index:4}
+.khud.on{opacity:1;visibility:visible}
+.khud .kb{display:block;height:4px;margin-top:4px;border-radius:2px;background:var(--raise);overflow:hidden}
+.khud .kb i{display:block;height:100%;background:var(--acc)}
+html[data-motion="on"] .knob .kdial{transition:transform .18s ease-out}
+html[data-motion="on"] .khud{transition:opacity .15s,visibility .15s}
+#board.picking .key{cursor:crosshair}
+.key .kname{position:absolute;inset:2px;display:grid;place-items:center;padding:1px 2px;border-radius:5px;background:oklch(0.27 0.006 255);color:var(--ink);font:600 9px/1.05 var(--mono);text-align:center;overflow:hidden;overflow-wrap:anywhere;pointer-events:none}
+.key{position:absolute;display:block;padding:0;border-radius:7px;border:2px solid transparent;background:transparent;cursor:pointer;color:var(--ink);line-height:1}
+.key::after{content:"";position:absolute;inset:0;border-radius:5px;background:var(--acc);opacity:0;pointer-events:none}
+.key::before{content:"";position:absolute;right:-6px;top:-6px;width:14px;height:14px;pointer-events:none;display:none;background-size:contain}
+.key.map:not(.fnk)::before{display:block}
+.key.t-ring::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='7' r='7' fill='%23b8f43c'/%3E%3Ccircle cx='7' cy='7' r='3.4' fill='none' stroke='%231a2208' stroke-width='1.6'/%3E%3C/svg%3E")}
+.key.t-key::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='7' r='7' fill='%23b8f43c'/%3E%3Ccircle cx='7' cy='7' r='3.2' fill='%231a2208'/%3E%3C/svg%3E")}
+.key.t-media::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='7' r='7' fill='%23b8f43c'/%3E%3Cpath d='M5.6 4.6 9.2 7 5.6 9.4z' fill='%231a2208'/%3E%3C/svg%3E")}
+.key.t-macro::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='7' r='7' fill='%23b8f43c'/%3E%3Cpath d='M7 3.4 10.6 7 7 10.6 3.4 7z' fill='%231a2208'/%3E%3C/svg%3E")}
+.key.t-other::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Ccircle cx='7' cy='7' r='7' fill='%23b8f43c'/%3E%3Crect x='4.4' y='4.4' width='5.2' height='5.2' rx='1' fill='%231a2208'/%3E%3C/svg%3E")}
+.key:hover{background:oklch(0.98 0.01 125/.08);border-color:oklch(0.9 0.01 125/.5)}
+.key:focus-visible{outline:3px solid var(--acc);outline-offset:2px;box-shadow:0 0 0 2px rgb(0 0 0/.75)}
+.key.map{border-color:var(--acc);box-shadow:0 0 0 1px rgb(0 0 0/.55)}
+.key.stg{border:2px dashed var(--acc)}
+.key.hl{box-shadow:0 0 0 3px oklch(0.87 0.2 125/.55),0 0 0 4px rgb(0 0 0/.6)}
+.key.sel{border:2px solid var(--ink);box-shadow:0 0 0 3px oklch(0.87 0.2 125/.8),0 0 0 4px rgb(0 0 0/.6)}
+.key.fnk{cursor:not-allowed}
+.board.nomap .key.map:not(.sel):not(.stg){border-color:transparent;box-shadow:none}
+.board.nomap .key:not(.stg)::before{display:none}
+.lcd{position:absolute;left:78.8%;top:10%;width:5.2%;height:12.5%;border-radius:3px;overflow:hidden;background:#07090a;pointer-events:none}
+#lcdhit{pointer-events:auto;cursor:pointer;z-index:3;min-width:24px;min-height:24px}
+#lcdhit:hover{outline:1.5px solid var(--acc);outline-offset:2px}
+#lcdhit:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.lcdslot canvas,.lcdslot img{width:100%;height:100%;display:block;object-fit:cover;image-rendering:pixelated}
+/* mapped list */
+.maps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px 40px;width:min(100%,905px);margin:0 auto;padding:0 0 8px}
+.mgrp h4{display:flex;align-items:baseline;gap:8px;margin:0 0 4px;padding:0 2px 6px;border-bottom:1px solid var(--edge);font:600 14px/1.5 var(--font);color:var(--ink)}
+.mgrp h4 .n{font:500 12px/1.5 var(--mono);color:var(--muted)}
+.mlist{list-style:none;margin:0;padding:0;column-width:200px;column-gap:28px}
+.mlist li{break-inside:avoid}
+.mgrp:has(li:nth-child(7)){grid-column:span 2}
+@media (max-width:600px){.mgrp:has(li:nth-child(7)){grid-column:auto}}
+.mlist li{border-bottom:1px solid color-mix(in oklch,var(--edge) 45%,transparent)}
+.cp{display:flex;width:100%;align-items:center;gap:12px;min-height:34px;padding:3px 4px;border:0;border-radius:6px;background:none;color:var(--ink);font:400 14px/1.5 var(--font);text-align:left;cursor:pointer}
+.cp kbd{flex:none;display:grid;place-items:center;min-width:40px;height:22px;padding:0 7px;border-radius:5px;border:1px solid var(--edge);background:var(--raise);font:500 12px/1.6 var(--mono);color:var(--ink);text-align:center}
+.cp .to{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp:hover,.cp.hl{background:var(--raise)}
+.cp:hover kbd,.cp.hl kbd{border-color:var(--acc);color:var(--acc-ink)}
+.cp.stg kbd{border-style:dashed;border-color:var(--acc)}
+.cp .stt{font:500 12px/1.5 var(--mono);color:var(--acc-ink)}
+.cp kbd.hi{padding-top:4px}
+/* quick strip */
+.strip{position:relative;z-index:2;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 24px;margin:0 0 32px}
+.grp{display:flex;align-items:center;gap:6px}
+.grp>.lbl{color:var(--muted);font-size:13px;margin-right:2px}
+.laysel option{color:var(--ink);background:var(--panel)}
+.opt{min-height:36px;min-width:36px;padding:3px 14px;border-radius:12px;border:1.5px solid var(--edge);background:transparent;cursor:pointer;font-size:14px}
+.opt:hover:not(:disabled){background:var(--raise)}
+.opt:disabled{opacity:.5;cursor:default}
+.opt[aria-pressed="true"],.opt[aria-checked="true"]{background:var(--acc-dim);border-color:var(--acc);color:var(--acc-ink);font-weight:600}
+.num{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums;display:inline-block}
+.num.m{font-size:20px;min-width:1.2ch;text-align:center}
+.num.xl{font-size:56px;line-height:1;letter-spacing:-.03em}
+.num.l{font-size:40px;line-height:1}
+/* floating pill bar */
+.dockfix{position:sticky;top:10px;margin:0 calc(50% - 50vw + 12px);display:flex;flex-direction:column-reverse;align-items:center;pointer-events:none;z-index:20}
+.dockfix>*{pointer-events:auto}
+.dockbox{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);width:min(1100px,calc(100vw - 24px));max-height:calc(100vh - 90px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;overflow:hidden}
+.dockbox:not(.open){border:0}
+.more{display:grid;grid-template-rows:0fr}
+.more>.mi{overflow:hidden;min-height:0;visibility:hidden}
+.dockbox.open .more{grid-template-rows:1fr}
+.dockbox.open .more>.mi{visibility:visible}
+.pbody{max-height:min(52vh,430px);overflow:auto;padding:20px 22px}
+.pill{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px;max-width:100%;padding:6px;border-radius:28px;background:var(--panel);border:1px solid var(--edge)}
+.seg{display:flex;align-items:center;gap:2px}
+.dv{width:1px;align-self:stretch;margin:6px 6px;background:var(--line)}
+.pill button.m{min-height:44px;min-width:44px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 14px;border-radius:999px;border:0;background:transparent;cursor:pointer;font-weight:500;color:var(--muted)}
+.pill button.m:hover{background:var(--raise);color:var(--ink)}
+.pill button.m[aria-expanded="true"]{background:var(--acc);color:var(--on-acc);font-weight:600}
+.pill svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pill .wbtn{min-height:44px;padding:0 20px;border-radius:999px}
+/* panel content */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px 32px;align-items:start}
+.cols.u{grid-template-columns:1.2fr 1fr 1.4fr}
+.pbody h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.pbody h4{font-size:13px;font-weight:500;color:var(--muted);margin-bottom:8px}
+.btn{min-height:36px;min-width:36px;padding:4px 16px;border-radius:12px;border:1.5px solid var(--edge);background:transparent;cursor:pointer}
+.btn:hover:not(:disabled){background:var(--raise)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--on-acc);font-weight:600}
+.btn.pri:hover:not(:disabled){background:var(--acc-hi)}
+.btn.q{border-color:transparent;color:var(--muted);padding:4px 10px}
+.btn.q:hover:not(:disabled){color:var(--ink)}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.sw{display:inline-flex;align-items:center;width:48px;height:28px;padding:3px;border-radius:999px;border:1.5px solid var(--edge);background:transparent;cursor:pointer;flex:none}
+.sw .kn{width:20px;height:20px;border-radius:50%;background:var(--edge)}
+.sw[aria-checked="true"]{background:var(--acc);border-color:var(--acc);justify-content:flex-end}
+.sw[aria-checked="true"] .kn{background:var(--on-acc)}
+.row2{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:38px}
+input[type=range]{width:100%;height:28px;accent-color:var(--acc);margin:6px 0 0}
+input[type=text]{width:100%;min-height:36px;padding:3px 12px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg)}
+select{min-height:36px;padding:3px 10px;border-radius:12px;border:1.5px solid var(--edge);background:var(--bg);max-width:100%}
+.laysel{min-height:44px;min-width:140px;padding:4px 36px 4px 14px;border-radius:999px;font-weight:600;cursor:pointer;appearance:none;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b8f43c' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 14px center/12px 8px;border-color:var(--acc);color:var(--acc-ink)}
+.fld{margin-top:12px;max-width:420px}
+.fld label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.err{color:var(--err);font-size:13px;margin-top:6px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.bar{height:8px;border-radius:8px;background:var(--raise);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:8px;background:var(--acc)}
+.sq{display:inline-block;width:14px;height:14px;border-radius:5px;vertical-align:-2px;margin-right:6px}
+.dot{display:inline-block;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--edge);vertical-align:-3px;margin-right:6px}
+.pv{width:128px;height:128px;border:1px solid var(--line);border-radius:12px;flex:none;background:#07090a;overflow:hidden}
+.split{display:flex;gap:18px;align-items:flex-start}
+.chg{list-style:none;margin:10px 0 12px;padding:0}
+.chg li{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.35}
+.chg li:first-child{border-top:0}
+.chg .t{color:var(--muted);font-size:13px;display:block}
+.chg .x{min-height:28px;min-width:28px;border-radius:10px;border:0;background:transparent;color:var(--muted);cursor:pointer;flex:none;font-size:16px}
+.chg .x:hover{background:var(--raise);color:var(--ink)}
+.empty{padding:10px 0;color:var(--muted);font-size:13px}
+.note{font-size:13px;margin-bottom:8px}
+.trayrow{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 18px;border-radius:14px;visibility:hidden;opacity:0;z-index:50;max-width:calc(100vw - 32px)}
+#toast.show{visibility:visible;opacity:1}
+@media(max-width:760px){
+  .shell{padding:18px 12px 60px}
+  .top h1{font-size:32px}
+  .cols.u{grid-template-columns:1fr}
+  .pill .lb{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .pill button.m{padding:0 10px}
+  .pill .wl{display:none}
+  .pill .wbtn{padding:0 16px}
+}
+.dockfix:not(.attop) .pill{width:min(1100px,100%);flex-wrap:nowrap;justify-content:space-between;padding:6px 8px}
+.dockfix:not(.attop) .pill .dv{display:none}
+@media(max-width:1000px){.pill .lb{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+@media(max-width:480px){.dockfix:not(.attop) .pill{flex-wrap:wrap;justify-content:center}}
+.dockfix.attop .pill{padding:4px;gap:2px;box-shadow:0 10px 30px rgb(0 0 0/.45)}
+.dockfix.attop .pill button.m,.dockfix.attop .pill .wbtn{min-height:36px;min-width:36px;padding:0 10px;font-size:13px}
+.dockfix.attop .pill svg{width:18px;height:18px}
+.dockfix.attop .pill .lb{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+body:has(.dockfix.attop) #toast{top:66px}
+@media(max-width:760px){.dockfix.attop .pill{flex-wrap:nowrap}.pill .dv{display:none}}
+/* motion: always on (Jon's choice) */
+html[data-motion="on"] .more{transition:grid-template-rows .32s cubic-bezier(.2,.7,.2,1)}
+html[data-motion="on"] .more>.mi{transition:visibility .32s}
+html[data-motion="on"] .key{transition:transform .09s ease-out,background-color .09s}
+html[data-motion="on"] .key:active:not(.fnk){transform:translateY(2px) scale(.94)}
+html[data-motion="on"] .float{animation:bob 7s ease-in-out infinite}
+html[data-motion="on"] .gl{animation:glspin 16s linear infinite,glhue 22s linear infinite,glbob 7s ease-in-out infinite}
+html[data-motion="on"] .key.stg{animation:breathe 2.4s ease-in-out infinite}
+html[data-motion="on"] .key.sw1::after{animation:sweep .55s ease-out var(--d,0ms) both}
+html[data-motion="on"] .opt,html[data-motion="on"] .btn,html[data-motion="on"] .pill button,html[data-motion="on"] .sw,html[data-motion="on"] .cp{transition:background-color .15s,border-color .15s,color .15s}
+html[data-motion="on"] .num.tick{animation:tick .3s ease-out}
+html[data-motion="on"] #toast{transition:opacity .2s}
+html[data-motion="on"] .bar i{transition:width .3s ease-out}
+@keyframes breathe{0%,100%{box-shadow:0 0 5px -1px oklch(0.87 0.2 125/.15);border-color:oklch(0.87 0.2 125/.55)}50%{box-shadow:0 0 16px 0 oklch(0.87 0.2 125/.7);border-color:var(--acc)}}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-.5deg)}50%{transform:translateY(-7px) rotate(.5deg)}}
+@keyframes glspin{to{--a:360deg}}
+@keyframes glhue{from{filter:blur(30px) saturate(1.3) hue-rotate(0deg)}to{filter:blur(30px) saturate(1.3) hue-rotate(360deg)}}
+@keyframes glbob{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(.92,.82);opacity:.45}}
+@keyframes sweep{0%{opacity:0}40%{opacity:.6}100%{opacity:0}}
+@keyframes tick{from{opacity:.2;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style>
+<style>
+.conn{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--muted)}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.conn[data-state="on"]::before{background:var(--acc)}
+.conn[data-state="part"]::before{background:#e0b25a}
+.plan{margin:10px 0}
+.pout{max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:11px;padding:8px 10px;margin:4px 0 8px;border-radius:10px;background:var(--bg);border:1px solid var(--line, rgba(255,255,255,.08))}
+.skl{margin:4px 0 8px 18px}
+.board.noimg{background:#15171a;border-radius:28px}
+</style>
+<script src="bridge-ui.js"></script>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <h1>AULA F75 <span class="mx">Max</span></h1>
+    <p style="font-size:18px;margin-top:4px">Change what the AULA F75 Max does, then send it to the board.</p>
+    <p class="conn" id="conn" role="status" aria-live="polite">Checking for the keyboard…</p>
+  </header>
+
+  <section class="stage" aria-label="Keyboard">
+  <div class="dockfix" id="dockfix">
+    <div class="dockbox" id="dockbox">
+      <div class="more"><div class="mi"><div class="pbody" id="panel" role="region" aria-label="Panel" aria-live="polite"></div></div></div>
+    </div>
+    <nav class="pill" id="dock" aria-label="Modes">
+      <div class="seg" id="modes"></div>
+      <i class="dv" aria-hidden="true"></i>
+      <div class="seg" id="acts"></div>
+    </nav>
+  </div>
+    <div class="bwrap"><div class="fw">
+      <div class="gl" id="gl" aria-hidden="true"></div>
+      <div class="float" id="float"><div class="board" id="board" role="group" aria-label="Keyboard board. Select a key to edit it.">
+        <img class="bimg" alt="" width="1000" height="400" draggable="false">
+        <div class="lcd lcdslot" id="lcdhit" role="button" tabindex="0" title="Double-click to change the screen image" aria-label="Keyboard screen. Double-click or press Enter to change the image or GIF."></div>
+        <div id="hot"></div>
+        <button type="button" class="knob" id="knob" data-act="knob" data-fid="knob" aria-label="Encoder knob. Scroll or use arrow keys to turn, click to press and edit."><i class="kdial" aria-hidden="true"></i></button>
+        <div class="khud" id="khud" role="status" aria-live="polite"></div>
+      </div></div>
+    </div></div>
+    <div class="strip" id="strip"></div>
+    <div class="maps" id="maps" aria-label="Mapped keys"></div>
+  </section>
+
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const D = {
+  "device": {"name": "AULA F75 Max", "usb": "0C45:800A", "firmware": "0x0108", "connection": "USB wired", "lcd": {"width":128,"height":128,"maxFrames":255,"frameDelayMs":[30,500]}},
+  "layout_rows": [
+    [["Esc",1],["F1",1,0.5],["F2",1],["F3",1],["F4",1],["F5",1,0.25],["F6",1],["F7",1],["F8",1],["F9",1,0.25],["F10",1],["F11",1],["F12",1],["LCD",2.5,0.5]],
+    [["`",1],["1",1],["2",1],["3",1],["4",1],["5",1],["6",1],["7",1],["8",1],["9",1],["0",1],["-",1],["=",1],["Bksp",2],["Del",1]],
+    [["Tab",1.5],["Q",1],["W",1],["E",1],["R",1],["T",1],["Y",1],["U",1],["I",1],["O",1],["P",1],["[",1],["]",1],["\\",1.5],["PgUp",1]],
+    [["Caps",1.75],["A",1],["S",1],["D",1],["F",1],["G",1],["H",1],["J",1],["K",1],["L",1],[";",1],["'",1],["Enter",2.25],["PgDn",1]],
+    [["Shift",2.25],["Z",1],["X",1],["C",1],["V",1],["B",1],["N",1],["M",1],[",",1],[".",1],["/",1],["RShift",1.75],["Up",1],["End",1]],
+    [["Ctrl",1.25],["Win",1.25],["Alt",1.25],["Space",6.25],["RAlt",1],["Fn",1],["Left",1,1],["Down",1],["Right",1]]
+  ],
+  "layers": {
+    "normal": {"`":"PrintScreen","Win":"Alt","Alt":"Win","RAlt":"Right Ctrl","PgUp":"Keypad *","PgDn":"Keypad /","End":"Keypad -","F1":"F13","F3":"F14","F5":"F15","F6":"F18","F7":"F19","F8":"F20","F9":"F21","F10":"F22","F11":"F23","F12":"F24"},
+    "fn": {"F1":"Mute","F2":"Volume down","F3":"Volume up","F4":"Play/Pause","Up":"Brightness up","Down":"Brightness down","Left":"Effect speed -","Right":"Effect speed +","Win":"Lock Win key"}
+  },
+  "action_types": ["Key","Key combo","Media","Mouse","System","Macro","Open app","AutoHotkey","Action ring","Disable","Default"],
+  "settings": {"keyResponse": {"value": 2, "levels": [{"level":1,"wired":"2-3 ms","note":"fastest, can chatter"},{"level":2,"wired":"5-6 ms"},{"level":3,"wired":"9-10 ms"},{"level":4,"wired":"13-14 ms"},{"level":5,"wired":"17-18 ms","note":"most stable"}]},
+    "sleep": {"value":"5 min","options":["Never","1 min","5 min","30 min"]},
+    "locks": {"Win key": false, "Alt+Tab": false, "Alt+F4": false},
+    "fnMode": {"value":"Momentary","options":["Momentary","Toggle"]}},
+  "lighting": {"modes": ["Static","Single On","Single Off","Glittering","Falling","Colourful","Breath","Spectrum","Outward","Scrolling","Rolling","Rotating","Explode","Launch","Ripples","Flowing","Pulsating","Tilt","Shuttle","LED Off"],
+    "current": {"mode":"Rolling","brightness":4,"brightnessMax":5,"speed":3,"speedMax":5},
+    "profiles": [{"name":"Focus Core","base":"#06142B","groups":{"letters":"#17BFFF","Esc Enter Space Bksp":"#8DEBFF","arrows+nav":"#2454A6"}},{"name":"Aurora","mode":"Flowing","color":"#7D42FF"}],
+    "live": {"note":"PC drives colours in real time (e.g. per app). Stops when the app closes.","examples":["SolidWorks: shortcut keys glow amber","Typing heatmap","CPU load on F-row"]}},
+  "lcd": {"current":"Factory animation (251 frames)","library":[{"name":"Factory animation","frames":251},{"name":"Clock face","frames":1},{"name":"Aurora loop","frames":48}]},
+  "macros": {"capacityActions":337,"used":41,"items":[{"name":"Sign-off","steps":18,"key":"none"},{"name":"SolidWorks: smart dimension","steps":6,"key":"F13"},{"name":"Paste plain","steps":5,"key":"Fn+V"}]},
+  "pending_changes_example": [{"what":"F1 sends Mute instead of F13","layer":"normal"},{"what":"Key response 2 -> 1","layer":"settings"}],
+  "write_rules": "Changes are staged locally first."
+};
+
+const $ = id => document.getElementById(id);
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const SK = 'aula-desktop-v1', AT0 = 'never';
+const MEDIA = ['Mute','Volume down','Volume up','Play/Pause','Next track','Previous track','Stop'];
+const MOUSE = ['Left click','Right click','Middle click','Wheel up','Wheel down'];
+const SYSTEM = ['Brightness down', 'Brightness up', 'Scroll up', 'Scroll down', 'Zoom in', 'Zoom out', 'Undo', 'Redo', 'Show desktop', 'Task view', 'Lock PC'];
+const AHK_SNIP = [['Type text', 'Send("Hello")'], ['Run an app', 'Run("notepad.exe")'], ['Pin window on top', 'WinSetAlwaysOnTop(-1, "A")'], ['Toggle mute', 'SoundSetMute(-1)'], ['Show a message', 'MsgBox("Hi")']];
+// triggers: Tap is the keyboard's own action; the rest run on this PC through the host layer
+const TRIG = [['tap', 'Tap'], ['double', 'Double tap'], ['triple', 'Triple tap'], ['hold', 'Hold'], ['taphold', 'Tap then hold']];
+const dispV = v => v === undefined ? 'none' : v.startsWith('AHK: ') ? 'AutoHotkey: ' + v.slice(5).split('\n')[0] : v;
+const RING_N = 8;
+const RING_DEF = ['Ctrl+C', 'Ctrl+V', 'Ctrl+Z', 'Ctrl+Shift+Z', 'Play/Pause', 'Win+Shift+S', 'Open: explorer.exe', 'Win+D'];
+const RING_HINT = ['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+Z', 'Ctrl+Shift+Z', 'Ctrl+S', 'Ctrl+W', 'Ctrl+T', 'Alt+Tab', 'Win+D', 'Win+E', 'Win+Shift+S', 'Win+Tab', 'Open: explorer.exe', 'Open: chrome.exe'].concat(MEDIA);
+const RO = 57, RI = 22;   // ring outer/inner radius in a 120x120 box
+const ringPt = (r, deg) => { const a = deg * Math.PI / 180; return [60 + r * Math.sin(a), 60 - r * Math.cos(a)]; };
+const ringWedge = (i, ro = RO, ri = RI, half = 21) => { const c = i * 360 / RING_N, a0 = c - half, a1 = c + half, f = q => q.map(n => n.toFixed(2)).join(' ');
+  return 'M' + f(ringPt(ro, a0)) + 'A' + ro + ' ' + ro + ' 0 0 1 ' + f(ringPt(ro, a1)) + 'L' + f(ringPt(ri, a1)) + 'A' + ri + ' ' + ri + ' 0 0 0 ' + f(ringPt(ri, a0)) + 'Z'; };
+const RICON = {
+  copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15V6a1 1 0 0 1 1-1h9"/>',
+  paste: '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2"/>',
+  cut: '<circle cx="7" cy="17" r="3"/><circle cx="17" cy="17" r="3"/><path d="M9 15 18 4M15 15 6 4"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  save: '<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+  play: '<path d="M6 5v14l8-7zM16 5v14M20 5v14"/>',
+  next: '<path d="M5 5v14l9-7zM18 5v14"/>',
+  prev: '<path d="M19 5v14l-9-7zM6 5v14"/>',
+  vol: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
+  snip: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  app: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/>',
+  folder: '<path d="M3 6h7l2 2h9v11H3z"/>',
+  desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  tab: '<rect x="3" y="6" width="13" height="10" rx="2"/><path d="M8 19h13V9"/>',
+  key: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/>',
+  empty: '<path d="M12 7v10M7 12h10"/>'
+};
+function ringIconKey(v) {
+  if (!v) return 'empty';
+  const t = v.toLowerCase().replace(/\s/g, '');
+  if (t.startsWith('open:')) return /explorer/.test(t) ? 'folder' : 'app';
+  return { 'ctrl+c': 'copy', 'ctrl+v': 'paste', 'ctrl+x': 'cut', 'ctrl+z': 'undo', 'ctrl+shift+z': 'redo', 'ctrl+y': 'redo', 'ctrl+s': 'save', 'play/pause': 'play', 'nexttrack': 'next', 'previoustrack': 'prev', 'mute': 'vol', 'volumeup': 'vol', 'volumedown': 'vol', 'win+shift+s': 'snip', 'win+d': 'desk', 'win+e': 'folder', 'alt+tab': 'tab', 'win+tab': 'tab' }[t] || 'key';
+}
+const RICON_NAME = { copy: 'Copy', paste: 'Paste', cut: 'Cut', undo: 'Undo', redo: 'Redo', save: 'Save', play: 'Play/Pause', next: 'Next', prev: 'Previous', vol: 'Volume', snip: 'Screenshot', app: 'App', folder: 'Folder', desk: 'Desktop', tab: 'Switch window', key: 'Key', empty: 'Plus' };
+const ringIcon = (v, ic) => '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + RICON[ic && RICON[ic] ? ic : ringIconKey(v)] + '</svg>';
+const slotLabel = v => !v ? 'Empty' : v.startsWith('Open: ') ? v.slice(6).replace(/\.exe$/i, '').replace(/^.*[\\/]/, '') : v;
+const KEYHINT = ['F13','F14','F15','F16','F17','F18','F19','F20','F21','F22','F23','F24','PrintScreen','Right Ctrl','Keypad *','Keypad /','Keypad -','Alt','Win','Esc'];
+const LIB = D.lcd.library.map(x => x.name);
+const BASE_USED = D.macros.used, BASE_STEPS = D.macros.items.reduce((a, m) => a + m.steps, 0);
+const MO = () => document.documentElement.getAttribute('data-motion') === 'on';
+
+function base() {
+  const c = D.lighting.current;
+  return { layers: clone(D.layers), keyResponse: D.settings.keyResponse.value, sleep: D.settings.sleep.value,
+    locks: clone(D.settings.locks), fnMode: D.settings.fnMode.value,
+    light: { mode: c.mode, brightness: c.brightness, speed: c.speed, profile: null },
+    live: { on: false, rules: {} },
+    lcd: { current: 'Factory animation', frames: 251, delay: 100 }, macros: clone(D.macros.items),
+    names: {}, rings: {}, ringIcons: {}, trig: { normal: {}, fn: {} }, timing: { tap: 250, hold: 300 }, enc: { left: 'Volume down', right: 'Volume up', press: 'Mute' } };
+}
+let wr = base(), st = base(), at = AT0;
+try {
+  const s = JSON.parse(localStorage.getItem(SK) || 'null');
+  if (s && s.st && s.wr && s.st.layers && s.wr.layers && s.st.light && s.st.macros) { st = s.st; wr = s.wr; at = s.at || AT0; }
+} catch (e) { /* storage unavailable */ }
+[st, wr].forEach(o => { o.enc = Object.assign(base().enc, o.enc); if (!o.trig) o.trig = { normal: {}, fn: {} }; if (!o.timing) o.timing = base().timing; if (!o.names) o.names = {}; if (!o.rings) o.rings = {}; if (!o.ringIcons) o.ringIcons = {}; });
+function save() { try { localStorage.setItem(SK, JSON.stringify({ st, wr, at })); } catch (e) { /* ignore */ } }
+
+let hist = [], fut = [];
+const ENC = [['left', 'Turn left'], ['right', 'Turn right'], ['press', 'Press'], ['press2', 'Double press'], ['press3', 'Triple press'], ['hold', 'Hold'], ['pleft', 'Hold + turn left'], ['pright', 'Hold + turn right']];
+const ENC_SHORT = { left: 'Left', right: 'Right', press: 'Push', press2: 'Push 2x', press3: 'Push 3x', hold: 'Hold', pleft: 'Hold+L', pright: 'Hold+R' };
+const trigList = k => k === 'Knob' ? ENC : TRIG;
+function getV(s, L, k, t) { return k === 'Knob' ? s.enc[t] : t === 'tap' ? s.layers[L][k] : ((s.trig[L] || {})[k] || {})[t]; }
+function setV(L, k, t, v) {
+  if (k === 'Knob') { const d = base().enc[t]; if (v === undefined && d === undefined) delete st.enc[t]; else st.enc[t] = v === undefined ? d : v; return; }
+  if (t === 'tap') { if (v === undefined) delete st.layers[L][k]; else st.layers[L][k] = v; return; }
+  const m = st.trig[L][k] = st.trig[L][k] || {};
+  if (v === undefined) delete m[t]; else m[t] = v;
+  if (!Object.keys(m).length) delete st.trig[L][k];
+}
+function edFor(k, t) { ui.trig = t; ui.rec = false; ui.iconFor = -1; ui.ed = Object.assign(infer(getV(st, ui.layer, k, t)), { err: '' }); }
+const ui = { layer: 'normal', sel: null, ed: null, panel: null, confirm: false, upErr: '', img: null, gif: false, url: '', showMap: true };
+function commit(fn) { hist.push(clone(st)); if (hist.length > 100) hist.shift(); fut = []; fn(); ui.confirm = false; save(); render(); }
+function undo() { if (!hist.length) return; fut.push(clone(st)); st = hist.pop(); save(); render(); }
+function redo() { if (!fut.length) return; hist.push(clone(st)); st = fut.pop(); save(); render(); }
+let tt;
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2600); }
+
+function diffs() {
+  const o = [];
+  ['normal', 'fn'].forEach(L => {
+    new Set([...Object.keys(st.layers[L]), ...Object.keys(wr.layers[L])]).forEach(k => {
+      const a = st.layers[L][k], b = wr.layers[L][k];
+      if (a === b) return;
+      o.push({ tag: L === 'fn' ? 'Fn layer' : 'Normal layer',
+        text: a ? k + ' sends ' + dispV(a) + (b ? ' instead of ' + dispV(b) : '') : k + ' back to default',
+        rev: () => { if (b === undefined) delete st.layers[L][k]; else st.layers[L][k] = b; } });
+    });
+  });
+  new Set([...Object.keys(st.rings), ...Object.keys(wr.rings)]).forEach(k => {
+    const a = JSON.stringify([st.rings[k] || null, st.ringIcons[k] || null]), b = JSON.stringify([wr.rings[k] || null, wr.ringIcons[k] || null]);
+    if (a !== b && st.layers.normal[k] === 'Action ring' && wr.layers.normal[k] === 'Action ring') o.push({ tag: 'Action ring', text: k + ' ring: ' + (st.rings[k] || []).filter(Boolean).map(slotLabel).join(', '), rev: () => { if (wr.rings[k]) st.rings[k] = clone(wr.rings[k]); else delete st.rings[k]; if (wr.ringIcons[k]) st.ringIcons[k] = clone(wr.ringIcons[k]); else delete st.ringIcons[k]; } });
+  });
+  ['normal', 'fn'].forEach(L => {
+    const A = st.trig[L], B = wr.trig[L];
+    new Set([...Object.keys(A), ...Object.keys(B)]).forEach(k => TRIG.slice(1).forEach(([t, n]) => {
+      const x = (A[k] || {})[t], y = (B[k] || {})[t];
+      if (x === y) return;
+      o.push({ tag: 'Host layer (this PC)', text: k + ' ' + n.toLowerCase() + ': ' + dispV(x) + (y ? ' (was ' + dispV(y) + ')' : ''), rev: () => { const m = st.trig[L][k] = st.trig[L][k] || {}; if (y === undefined) delete m[t]; else m[t] = y; if (!Object.keys(m).length) delete st.trig[L][k]; } });
+    }));
+  });
+  const lv = D.settings.keyResponse.levels;
+  const f = (tag, text, ok, rev) => { if (!ok) o.push({ tag, text, rev }); };
+  f('Settings', 'Key response ' + wr.keyResponse + ' -> ' + st.keyResponse + ' (' + lv[st.keyResponse - 1].wired + ')', st.keyResponse === wr.keyResponse, () => st.keyResponse = wr.keyResponse);
+  f('Settings', 'Sleep ' + wr.sleep + ' -> ' + st.sleep, st.sleep === wr.sleep, () => st.sleep = wr.sleep);
+  Object.keys(st.locks).forEach(k => f('Locks', k + ' lock ' + (st.locks[k] ? 'on' : 'off'), st.locks[k] === wr.locks[k], () => st.locks[k] = wr.locks[k]));
+  f('Locks', 'Fn mode ' + wr.fnMode + ' -> ' + st.fnMode, st.fnMode === wr.fnMode, () => st.fnMode = wr.fnMode);
+  f('Lighting', 'Effect ' + wr.light.mode + ' -> ' + st.light.mode, st.light.mode === wr.light.mode, () => st.light.mode = wr.light.mode);
+  f('Lighting', 'Brightness ' + wr.light.brightness + ' -> ' + st.light.brightness, st.light.brightness === wr.light.brightness, () => st.light.brightness = wr.light.brightness);
+  f('Lighting', 'Speed ' + wr.light.speed + ' -> ' + st.light.speed, st.light.speed === wr.light.speed, () => st.light.speed = wr.light.speed);
+  f('Lighting', 'Profile ' + (st.light.profile || 'none'), st.light.profile === wr.light.profile, () => st.light.profile = wr.light.profile);
+  f('Screen', 'Screen image: ' + st.lcd.current, st.lcd.current === wr.lcd.current, () => { st.lcd.current = wr.lcd.current; st.lcd.frames = wr.lcd.frames; });
+  f('Screen', 'Frame delay ' + wr.lcd.delay + ' -> ' + st.lcd.delay + ' ms', st.lcd.delay === wr.lcd.delay, () => st.lcd.delay = wr.lcd.delay);
+  ENC.forEach(([k, n]) => f('Knob (this PC)', n + ': ' + dispV(wr.enc[k]) + ' -> ' + dispV(st.enc[k]), st.enc[k] === wr.enc[k], () => { if (wr.enc[k] === undefined) delete st.enc[k]; else st.enc[k] = wr.enc[k]; }));
+  f('Host layer (this PC)', 'Tap window ' + wr.timing.tap + ' -> ' + st.timing.tap + ' ms', st.timing.tap === wr.timing.tap, () => st.timing.tap = wr.timing.tap);
+  f('Host layer (this PC)', 'Hold after ' + wr.timing.hold + ' -> ' + st.timing.hold + ' ms', st.timing.hold === wr.timing.hold, () => st.timing.hold = wr.timing.hold);
+  const wn = wr.macros.map(m => m.name), sn = st.macros.map(m => m.name);
+  st.macros.filter(m => !wn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Add macro ' + m.name + ' (' + m.steps + ' actions)', rev: () => { st.macros = st.macros.filter(x => x.name !== m.name); } }));
+  wr.macros.filter(m => !sn.includes(m.name)).forEach(m => o.push({ tag: 'Macros', text: 'Remove macro ' + m.name, rev: () => { st.macros.push(clone(m)); } }));
+  return o;
+}
+const macUsed = () => BASE_USED + st.macros.reduce((a, m) => a + m.steps, 0) - BASE_STEPS;
+
+function infer(v) {
+  if (v === undefined) return { type: 'Key', val: '' };
+  if (v === 'Disabled') return { type: 'Disable', val: '' };
+  if (v === 'Action ring') return { type: 'Action ring', val: '' };
+  if (v.startsWith('AHK: ')) return { type: 'AutoHotkey', val: v.slice(5) };
+  if (SYSTEM.includes(v)) return { type: 'System', val: v };
+  if (v.startsWith('Macro: ')) return { type: 'Macro', val: v.slice(7) };
+  if (v.startsWith('Open: ')) return { type: 'Open app', val: v.slice(6) };
+  if (MEDIA.includes(v)) return { type: 'Media', val: v };
+  if (MOUSE.includes(v)) return { type: 'Mouse', val: v };
+  if (v.includes('+')) return { type: 'Key combo', val: v };
+  return { type: 'Key', val: v };
+}
+function selectKey(k) {
+  ui.iconFor = -1;
+  ui.rec = false;
+  if (ui.sel === k) { ui.sel = null; ui.ed = null; }
+  else { ui.sel = k; ui.panel = 'keys'; edFor(k, 'tap'); }
+  render();
+}
+function applyEd() {
+  const e = ui.ed, k = ui.sel, L = ui.layer, t = ui.trig || 'tap', tn = trigList(k).find(x => x[0] === t)[1];
+  let v = (e.val || '').trim();
+  let out;
+  if (e.type === 'Action ring') v = '-';
+  if (e.type === 'Default') out = undefined;
+  else if (e.type === 'Disable') out = 'Disabled';
+  else if (!v) { e.err = 'Choose or enter a value for ' + e.type + '.'; return render(); }
+  else if (e.type === 'Action ring') { out = 'Action ring'; const sl = e.slots.map(x => x.trim()); if (!sl.some(Boolean)) { e.err = 'Give the ring at least one action.'; return render(); } commit(() => { setV(L, k, t, out); st.rings[k] = sl; if (e.icons.some(Boolean)) st.ringIcons[k] = e.icons.slice(); else delete st.ringIcons[k]; }); return toast(k + ' ' + tn.toLowerCase() + ': ring staged'); }
+  else if (e.type === 'Key combo' && !v.includes('+')) { e.err = 'A combo needs two or more keys joined with +, e.g. Ctrl+Shift+S.'; return render(); }
+  else out = e.type === 'Macro' ? 'Macro: ' + v : e.type === 'Open app' ? 'Open: ' + v : e.type === 'AutoHotkey' ? 'AHK: ' + v : v;
+  commit(() => setV(L, k, t, out));
+  toast(k + ' ' + tn.toLowerCase() + ' staged');
+}
+
+/* animated numbers: a value that changed since the last render gets .tick (motion only) */
+const prevN = {};
+function N(id, val, cls, txt) {
+  const ch = prevN[id] !== undefined && prevN[id] !== val;
+  prevN[id] = val;
+  return '<span class="num ' + cls + (ch ? ' tick' : '') + '">' + (txt === undefined ? val : txt) + '</span>';
+}
+
+/* ---------- board ---------- */
+const KM = [["Esc",101,43,46,47],["F1",162,43,43,45],["F2",212,43,43,44],["F3",263,43,42,44],["F4",313,43,43,45],["F5",373,43,42,44],["F6",423,43,42,44],["F7",473,43,43,44],["F8",524,43,42,45],["F9",583,43,43,45],["F10",633,43,43,45],["F11",683,43,43,45],["F12",733,43,44,45],["`",102,111,41,43],["1",153,111,40,42],["2",204,111,40,42],["3",254,111,40,42],["4",304,111,40,42],["5",354,111,40,42],["6",404,111,40,42],["7",455,111,40,42],["8",505,111,39,42],["9",555,111,40,42],["0",606,111,39,42],["-",656,111,40,42],["=",706,111,41,42],["Bksp",756,110,91,45],["Del",855,110,43,44],["Tab",101,161,67,44],["Q",178,161,41,43],["W",228,161,41,43],["E",278,161,41,43],["R",328,161,42,43],["T",379,161,41,43],["Y",429,161,41,43],["U",479,161,41,43],["I",529,161,42,43],["O",580,161,41,43],["P",630,161,42,43],["[",680,161,42,43],["]",730,161,43,44],["\\",780,161,68,45],["PgUp",855,161,44,44],["Caps",101,211,80,44],["A",190,212,42,42],["S",241,212,41,42],["D",291,212,41,42],["F",341,212,42,42],["G",391,212,42,42],["H",441,211,42,43],["J",492,212,41,42],["K",542,211,41,43],["L",592,211,41,43],[";",643,211,41,43],["'",693,211,42,43],["Enter",742,211,106,44],["PgDn",854,211,45,44],["Shift",100,262,106,43],["Z",215,262,41,42],["X",266,262,40,42],["C",315,262,42,43],["V",366,262,41,43],["B",416,262,42,43],["N",466,262,42,43],["M",517,262,42,43],[",",567,262,41,43],[".",618,262,41,42],["/",668,262,41,42],["RShift",719,262,78,43],["Up",806,261,42,43],["End",856,261,44,45],["Ctrl",100,312,56,44],["Win",163,312,56,44],["Alt",226,312,57,45],["Space",288,312,310,46],["RAlt",603,312,57,45],["Fn",667,312,57,45],["Left",755,312,44,45],["Down",806,312,43,44],["Right",856,312,44,45]];
+const IW = 1000, IH = 400, ROWY = [43, 111, 161, 211, 262, 312];
+let keyMeta = [];
+function renderBoard() {
+  const L = ui.layer, m = st.layers[L], w = wr.layers[L];
+  keyMeta = [];
+  const pc = (v, t) => (v / t * 100).toFixed(3) + '%';
+  $('board').classList.toggle('nomap', !ui.showMap);
+  $('board').classList.toggle('picking', !!ui.pick);
+  $('hot').innerHTML = KM.map(([lab, x, y, bw, bh], i) => {
+    const v = m[lab], tg = st.trig[L][lab], isFn = lab === 'Fn';
+    const stg = v !== w[lab] || JSON.stringify(tg || null) !== JSON.stringify(wr.trig[L][lab] || null);
+    const cls = 'key' + (v ? ' map t-' + gtype(v) : tg ? ' map t-other' : '') + (stg ? ' stg' : '') + (ui.sel === lab ? ' sel' : '') + (isFn ? ' fnk' : '');
+    const nm = st.names[lab];
+    const al = (nm ? nm + ' (' + lab + ')' : lab) + ', ' + (L === 'fn' ? 'Fn' : 'Normal') + ' layer, ' + (isFn ? 'cannot be remapped' : v ? 'sends ' + v : 'default') + (stg ? ', staged' : '');
+    const row = ROWY.reduce((b, ry, j) => Math.abs(ry - y) < Math.abs(ROWY[b] - y) ? j : b, 0);
+    keyMeta.push({ lab, row, x0: x / IW, x1: (x + bw) / IW, nx: (x + bw / 2) / IW, ny: (y + bh / 2) / IH, idx: i, bx: x, by: y, bw, bh });
+    return '<button type="button" class="' + cls + '" data-act="key" data-k="' + esc(lab) + '" data-fid="k' + esc(lab) + '" aria-pressed="' + (ui.sel === lab ? 'true' : 'false') + '" aria-label="' + esc(al) + '" title="' + esc(al) + '" style="left:' + pc(x, IW) + ';top:' + pc(y, IH) + ';width:' + pc(bw, IW) + ';height:' + pc(bh, IH) + '">' + (nm ? '<span class="kname" aria-hidden="true">' + esc(nm) + '</span>' : '') + '</button>';
+  }).join('');
+  $('knob').classList.toggle('sel', ui.sel === 'Knob');
+  const els = document.querySelectorAll('#hot .key');
+  keyMeta.forEach((k, i) => k.el = els[i]);
+}
+
+/* ---------- LCD (fixed in the board's LCD rect, moves with the board) ---------- */
+const FONT = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001001001001', '8': '111101111101111', '9': '111101111001111', ':': '0,1,0,1,0', A: '010101111101101', U: '101101101101111', L: '100100100100111' };
+function pixText(x, s, u, y0, col) {
+  const ws = s.split('').map(c => c === ':' ? 1 : 3), tot = ws.reduce((a, w) => a + w + 1, -1) * u;
+  let px = Math.round((128 - tot) / 2); x.fillStyle = col;
+  s.split('').forEach((c, ci) => {
+    const g = FONT[c].split(',').length === 5 ? FONT[c].split(',') : null;
+    for (let r = 0; r < 5; r++) for (let q = 0; q < ws[ci]; q++) {
+      const on = g ? g[r] === '1' : FONT[c][r * 3 + q] === '1';
+      if (on) x.fillRect(px + q * u, y0 + r * u, u, u);
+    }
+    px += (ws[ci] + 1) * u;
+  });
+}
+function drawLcd(cv, t) {
+  const x = cv.getContext('2d'), name = st.lcd.current;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, 128, 128);
+  if (!LIB.includes(name)) {
+    if (ui.img && ui.img.complete && ui.img.naturalWidth) {
+      const w = ui.img.naturalWidth, h = ui.img.naturalHeight, s = Math.min(w, h), sx = (w - s) / 2, sy = (h - s) / 2;
+      x.imageSmoothingEnabled = false;
+      try { x.drawImage(ui.img, sx, sy, s, s, 0, 0, 128, 128); } catch (e) { /* ignore */ }
+    } else { x.fillStyle = '#0a0d09'; x.fillRect(0, 0, 128, 128); pixText(x, '18:36', 6, 49, '#c9d1bd'); }
+    return;
+  }
+  x.fillStyle = '#0a0d09'; x.fillRect(0, 0, 128, 128);
+  if (name === 'Aurora loop') {
+    x.setTransform(4, 0, 0, 4, 0, 0);
+    for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) {
+      const v = Math.max(0, Math.sin(i * .35 + t * 1.2 + Math.sin(j * .2))) * (1 - j / 32);
+      x.fillStyle = 'hsl(' + (275 - j * 3 + Math.sin(i * .4 + t) * 25) + ' 80% ' + (8 + v * 45) + '%)'; x.fillRect(i, j, 1, 1);
+    }
+    x.setTransform(1, 0, 0, 1, 0, 0);
+  } else if (name === 'Factory animation') pixText(x, 'AULA', 6, 49, '#c9d1bd');
+  else pixText(x, '18:36', 6, 49, '#c9d1bd');
+}
+function paintLcd(t) {
+  const up = !LIB.includes(st.lcd.current) && ui.img;
+  document.querySelectorAll('.lcdslot').forEach(s => {
+    const gif = up && ui.gif && MO(), sig = (gif ? 'gif' : 'cv') + '|' + st.lcd.current + '|' + (ui.url || '');
+    if (s.dataset.sig !== sig) { s.dataset.sig = sig; s.innerHTML = gif ? '<img alt="" src="' + ui.url + '">' : '<canvas width="128" height="128"></canvas>'; }
+    const c = s.querySelector('canvas'); if (c) drawLcd(c, t || 1.2);
+  });
+}
+let raf = 0, last = 0;
+function loop(ts) {
+  if (!(MO() && st.lcd.current === 'Aurora loop')) { raf = 0; return; }
+  if (ts - last >= 50) { last = ts; paintLcd(ts / 1000); }
+  raf = requestAnimationFrame(loop);
+}
+function syncMotion() {
+  cancelAnimationFrame(raf); raf = 0;
+  paintLcd(1.2);
+  if (MO() && st.lcd.current === 'Aurora loop') raf = requestAnimationFrame(loop);
+}
+document.addEventListener('DOMContentLoaded', syncMotion);
+function sweep() {
+  if (!MO()) return;
+  keyMeta.forEach(m => { m.el.style.setProperty('--d', Math.round(m.nx * 650 + m.row * 70) + 'ms'); m.el.classList.add('sw1'); });
+  setTimeout(() => keyMeta.forEach(m => m.el && m.el.classList.remove('sw1')), 1500);
+}
+
+/* ---------- mapped-key list (hover/focus links to the key) ---------- */
+const GLY = { key: '<circle cx="5" cy="5" r="3.2"/>', media: '<path d="M2.6 1.6 8.2 5 2.6 8.4z"/>', macro: '<path d="M5 .8 9.2 5 5 9.2.8 5z"/>', other: '<rect x="2" y="2" width="6" height="6" rx="1"/>' };
+const gsvg = t => '<svg viewBox="0 0 10 10" aria-hidden="true">' + GLY[t] + '</svg>';
+const TYPES = { Key: 'key', 'Key combo': 'key', Media: 'media', Macro: 'macro', 'Action ring': 'ring' };
+const gtype = v => TYPES[infer(v).type] || 'other';
+const GT = [['key', 'Key remaps'], ['ring', 'Action rings'], ['media', 'Media'], ['macro', 'Macros'], ['other', 'Other']];
+function renderMaps() {
+  const L = ui.layer, m = st.layers[L], w = wr.layers[L], g = { key: [], ring: [], media: [], macro: [], other: [] };
+  Object.keys(m).forEach(k => { if (k !== 'Fn') g[gtype(m[k])].push(k); });
+  const any = Object.keys(m).length;
+  $('maps').hidden = !ui.showMap || !any;
+  $('maps').innerHTML = GT.filter(([t]) => g[t].length).map(([t, n]) => '<section class="mgrp" aria-label="' + n + '"><h4>' + n + '<span class="n">' + g[t].length + '</span></h4><ul class="mlist">' + g[t].map(k => {
+    const stg = m[k] !== w[k];
+    return '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="key" data-k="' + esc(k) + '" data-fid="c' + esc(k) + '" aria-label="' + esc(k) + ' sends ' + esc(m[k]) + (stg ? ', staged' : '') + '"><kbd' + (/^[`'"^~]$/.test(k) && !st.names[k] ? ' class="hi"' : '') + '>' + esc(st.names[k] || k) + '</kbd><span class="to">' + esc(m[k]) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>';
+  }).join('') + '</ul></section>').join('')
+    + '<section class="mgrp" aria-label="Encoder"><h4>Encoder<span class="n">' + ENC.filter(([k]) => st.enc[k] !== undefined).length + '</span></h4><ul class="mlist">' + ENC.filter(([k]) => st.enc[k] !== undefined || wr.enc[k] !== undefined).map(([k, n]) => {
+      const stg = st.enc[k] !== wr.enc[k];
+      return '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="knob" data-k="Knob" data-trig="' + k + '" data-fid="ce' + k + '" aria-label="Knob ' + n + ' does ' + esc(dispV(st.enc[k])) + (stg ? ', staged' : '') + '"><kbd>' + ENC_SHORT[k] + '</kbd><span class="to">' + esc(dispV(st.enc[k])) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>';
+    }).join('') + '</ul></section>';
+  const T = st.trig[L], tk = Object.keys(T);
+  const rows = [].concat(...tk.map(k => TRIG.slice(1).filter(([t]) => T[k][t] !== undefined).map(([t, n]) => [k, t, n])));
+  if (rows.length) $('maps').insertAdjacentHTML('beforeend', '<section class="mgrp" aria-label="Multi-tap and hold"><h4>Multi-tap &amp; hold<span class="n">' + rows.length + '</span></h4><ul class="mlist">' + rows.map(([k, t, n]) => {
+    const v = T[k][t], stg = v !== ((wr.trig[L][k] || {})[t]);
+    return '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="key" data-k="' + esc(k) + '" data-trig="' + t + '" data-fid="ct' + esc(k) + t + '" aria-label="' + esc(k) + ' ' + n + ' does ' + esc(dispV(v)) + (stg ? ', staged' : '') + '"><kbd>' + esc(st.names[k] || k) + '</kbd><span class="to"><span class="small muted">' + n + '</span> ' + esc(dispV(v)) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>';
+  }).join('') + '</ul></section>');
+}
+function link(e, on) {
+  const n = e.target.closest && e.target.closest('.key,.cp,.knob'); if (!n || !n.dataset.k) return;
+  const nk = n.dataset.k || (n.id === 'knob' ? 'Knob' : '');
+  document.querySelectorAll('.key,.cp,.knob').forEach(x => { if ((x.dataset.k || (x.id === 'knob' ? 'Knob' : '')) === nk) x.classList.toggle('hl', on); });
+}
+['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, e => link(e, true)));
+['mouseout', 'focusout'].forEach(ev => document.addEventListener(ev, e => link(e, false)));
+
+/* ---------- quick strip, tray, dock ---------- */
+function renderStrip() {
+  const lv = D.settings.keyResponse.levels, k = st.keyResponse;
+  $('strip').innerHTML = '<div class="grp"><label class="lbl" for="laysel">Layer</label><select id="laysel" class="laysel" data-layer data-fid="laysel">' + [['normal', 'Normal'], ['fn', 'Fn layer']].map(x => '<option value="' + x[0] + '"' + (ui.layer === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') + '</select></div>'
+    + '<div class="grp" role="group" aria-labelledby="krq"><span class="lbl" id="krq">Key response</span><button class="opt" type="button" data-act="kr" data-v="-1" data-fid="sq-m" aria-label="Faster response" ' + (k <= 1 ? 'disabled' : '') + '>−</button>' + N('kr', k, 'm') + '<button class="opt" type="button" data-act="kr" data-v="1" data-fid="sq-p" aria-label="More stable response" ' + (k >= 5 ? 'disabled' : '') + '>+</button><span class="small muted mono">' + lv[k - 1].wired + '</span></div>'
+    + '<div class="grp"><button class="opt" type="button" role="switch" aria-checked="' + ui.showMap + '" data-act="showmap" data-fid="smap">Show mappings</button></div>'
+    + '<div class="grp" role="group" aria-label="Locks">' + Object.keys(st.locks).map(n => '<button class="opt" type="button" role="switch" aria-checked="' + st.locks[n] + '" data-act="lock" data-v="' + esc(n) + '" data-fid="sl' + esc(n) + '">' + esc(n) + ' lock</button>').join('') + '</div>';
+}
+function trayHtml() {
+  const d = diffs(), n = d.length;
+  let h = '<h3>Changes</h3>';
+  if (!n) h += '<p class="empty">Nothing staged. Edit a key, effect or setting and it lands here before anything is written.</p>';
+  else {
+    h += '<ul class="chg" aria-label="Staged changes">' + d.map((x, i) => '<li><span><span class="t">' + x.tag + '</span>' + esc(x.text) + '</span><button type="button" class="x" data-act="revone" data-i="' + i + '" aria-label="Revert: ' + esc(x.text) + '">×</button></li>').join('') + '</ul>';
+    h += planHtml();
+    if (ui.confirm) h += '<p class="note" role="alert">Send exactly these ' + n + ' change' + (n > 1 ? 's' : '') + ' to the keyboard?</p><button class="btn pri" type="button" data-act="write" data-fid="wr">Confirm send</button><button class="btn q" type="button" data-act="cancel">Cancel</button>';
+    else h += '<button class="btn" type="button" data-act="revert">Revert all</button>';
+  }
+  h += '<div class="trayrow" style="margin-top:6px"><button class="btn q" type="button" id="undo" aria-label="Undo last staged change (Ctrl+Z)">Undo</button><button class="btn q" type="button" id="redo" aria-label="Redo staged change (Ctrl+Y)">Redo</button></div>'
+    + '<p class="small muted" style="margin-top:8px">Last written <span class="mono">' + esc(at) + '</span>. The board cannot report its settings, so this is only what this app last wrote.</p>';
+  return h;
+}
+const ICON = {
+  keys: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="2"/><rect x="14" y="4" width="7" height="7" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/></svg>',
+  light: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>',
+  screen: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="3"/><path d="M9 9h6M9 13h3"/></svg>',
+  mac: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10-6.5z"/></svg>',
+  set: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/></svg>',
+  chg: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>'
+};
+const MODES = [['keys', 'Keys'], ['light', 'Lighting'], ['screen', 'Screen'], ['mac', 'Macros'], ['set', 'Settings']];
+function renderDock() {
+  const n = diffs().length;
+  $('modes').innerHTML = MODES.map(([id, lab]) => '<button type="button" class="m" data-act="mode" data-v="' + id + '" data-fid="d' + id + '" aria-expanded="' + (ui.panel === id) + '" aria-controls="panel">' + ICON[id] + '<span class="lb">' + lab + '</span></button>').join('');
+  $('acts').innerHTML = '<button type="button" class="m" data-act="mode" data-v="chg" data-fid="dchg" aria-expanded="' + (ui.panel === 'chg') + '" aria-controls="panel" aria-label="Changes, ' + n + ' staged">' + ICON.chg + '<span class="lb">Changes</span>' + N('cnt', n, 'm') + '</button>'
+    + '<button type="button" class="btn pri wbtn" data-act="review" data-fid="rv" aria-label="Send to keyboard"' + (n ? '' : ' disabled') + '>Send<span class="wl"> to keyboard</span></button>';
+  $('dockbox').classList.toggle('open', ui.panel !== null);
+}
+
+/* ---------- panels ---------- */
+function range(id, val, min, max, aria) {
+  return '<input type="range" id="' + id + '" data-fid="' + id + '" data-rng="' + id + '" min="' + min + '" max="' + max + '" value="' + val + '" aria-label="' + aria + '">';
+}
+function pKeys() {
+  const k = ui.sel, L = ui.layer;
+  const isK = k === 'Knob', t = ui.trig || (isK ? 'left' : 'tap');
+  const tag = '<span class="muted small">' + (L === 'fn' ? 'Fn layer' : 'Normal layer') + '</span>';
+  if (k === null) return '<div class="cols"><div><h3>Keys</h3><p class="muted" style="margin-top:6px">Select a key on the board to change what it does. The selected key gets a clear outline.</p></div><div class="small muted" style="display:grid;gap:8px"><span><i class="sq" style="background:var(--acc-dim);border:1.5px solid var(--acc)"></i>Remapped</span><span><i class="sq" style="border:2px dashed var(--acc)"></i>Staged, not written</span><span>Fn cannot be remapped.</span></div></div>';
+  if (k === 'Fn') return '<h3>Fn ' + tag + '</h3><p class="muted" style="margin-top:6px;max-width:52ch">The Fn key cannot be remapped. Its behaviour (momentary or toggle) is set under Settings.</p><div class="acts"><button class="btn" type="button" data-act="close" data-fid="close">Close</button></div>';
+  const e = ui.ed, cur = getV(st, L, k, t), was = getV(wr, L, k, t);
+  let f = '';
+  if (e.type === 'Key') f = '<input type="text" list="kh" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="e.g. F13 or Right Ctrl"><datalist id="kh">' + KEYHINT.map(x => '<option value="' + x + '">').join('') + '</datalist>';
+  else if (e.type === 'Key combo') f = '<input type="text" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="e.g. Ctrl+Shift+S">';
+  else if (e.type === 'Open app') f = '<input type="text" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="C:\\Program Files\\App\\app.exe">';
+  else if (e.type === 'AutoHotkey') f = '<textarea class="ahk" rows="4" spellcheck="false" data-ed="val" data-fid="edv" placeholder="Send(&quot;Hello&quot;)">' + esc(e.val) + '</textarea><div class="opts" role="group" aria-label="Snippets" style="margin-top:8px">' + AHK_SNIP.map(([n], i) => '<button type="button" class="opt" data-act="ahksnip" data-v="' + i + '">' + n + '</button>').join('') + '</div><span class="small muted">AutoHotkey v2. Runs on this PC through the host layer, like your Cidoo setup.</span>';
+  else if (e.type === 'Media' || e.type === 'Mouse' || e.type === 'Macro' || e.type === 'System') {
+    const opts = e.type === 'Media' ? MEDIA : e.type === 'Mouse' ? MOUSE : e.type === 'System' ? SYSTEM : st.macros.map(m => m.name);
+    f = opts.length ? '<select data-ed="val" data-fid="edv"><option value="">Choose…</option>' + opts.map(o => '<option' + (o === e.val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' : '<p class="muted">No macros yet. Add one under Macros.</p>';
+  } else if (e.type === 'Action ring') {
+    if (!e.slots) e.slots = (st.rings[k] || RING_DEF).slice();
+    if (!e.icons) e.icons = (st.ringIcons[k] || Array(RING_N).fill(null)).slice();
+    const DIRS = ['Top', 'Top right', 'Right', 'Bottom right', 'Bottom', 'Bottom left', 'Left', 'Top left'];
+    f = '<div class="redit"><div class="rmini"><div class="band"></div>' + e.slots.map((v, i) => {
+      const [x, y] = ringPt(44, i * 360 / RING_N);
+      return '<button type="button" class="rmb' + (v ? '' : ' empty') + '" data-act="ringfocus" data-v="' + i + '" data-w="' + i + '" aria-label="Edit ' + DIRS[i] + ' action" style="left:' + (x / 1.2).toFixed(2) + '%;top:' + (y / 1.2).toFixed(2) + '%">' + ringIcon(v, e.icons[i]) + '</button>';
+    }).join('') + '<div class="hub">' + esc(st.names[k] || k) + '</div></div>'
+      + '<ol class="rlist" aria-label="Ring actions, clockwise from the top">' + e.slots.map((v, i) =>
+        '<li data-w="' + i + '"><span class="rdir" aria-hidden="true">' + (i + 1) + '</span><button type="button" class="ricon' + (e.icons[i] ? ' set' : '') + '" data-act="ringicon" data-v="' + i + '" data-fid="ri' + i + '" aria-expanded="' + (ui.iconFor === i) + '" aria-label="Change icon for ' + DIRS[i] + ' (now ' + RICON_NAME[e.icons[i] || ringIconKey(v)] + ')">' + ringIcon(v, e.icons[i]) + '</button><input type="text" class="rslot" list="rh" data-slot="' + i + '" data-fid="rs' + i + '" aria-label="' + DIRS[i] + ' action" value="' + esc(v) + '" placeholder="' + DIRS[i] + ': empty" title="' + DIRS[i] + '"></li>').join('')
+      + '</ol></div>'
+      + (ui.iconFor >= 0 && ui.iconFor < RING_N ? '<div class="rpick" role="group" aria-label="Icon for ' + DIRS[ui.iconFor] + '"><span class="small muted">Icon for ' + DIRS[ui.iconFor] + '</span><div class="rpgrid">'
+        + '<button type="button" class="rpi' + (!e.icons[ui.iconFor] ? ' on' : '') + '" data-act="ringiconset" data-v="" aria-pressed="' + !e.icons[ui.iconFor] + '">Auto</button>'
+        + Object.keys(RICON).map(n => '<button type="button" class="rpi' + (e.icons[ui.iconFor] === n ? ' on' : '') + '" data-act="ringiconset" data-v="' + n + '" aria-pressed="' + (e.icons[ui.iconFor] === n) + '" aria-label="' + RICON_NAME[n] + '" title="' + RICON_NAME[n] + '">' + ringIcon('', n) + '</button>').join('') + '</div></div>' : '')
+      + '<datalist id="rh">' + RING_HINT.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>'
+      + '<div class="rec"><button type="button" class="btn" data-act="ringpreview" data-fid="ringpreview">Preview ring</button><span class="small muted">Press the key, then click an action. Esc or a click outside closes it. Runs on this PC through the host layer.</span></div>';
+  }
+  else f = '<p class="muted">' + (e.type === 'Disable' ? 'The key will do nothing.' : 'The key returns to its factory behaviour.') + '</p>';
+  const nm = isK ? '' : st.names[k] || '';
+  const host = isK || t !== 'tap' || ['AutoHotkey', 'Action ring', 'Open app', 'System'].includes(e.type);
+  const timed = ['double', 'triple', 'hold', 'taphold', 'press2', 'press3', 'pleft', 'pright'].includes(t);
+  const isSet = id => isK ? st.enc[id] !== undefined && st.enc[id] !== base().enc[id] : getV(st, L, k, id) !== undefined;
+  const trigRow = '<div class="opts" role="radiogroup" aria-label="Trigger">' + trigList(k).map(([id, n]) => '<button type="button" class="opt trg" role="radio" aria-checked="' + (id === t) + '" data-act="trig" data-v="' + id + '" data-fid="tg' + id + '" aria-label="' + n + (isSet(id) ? ', set' : '') + '">' + n + (isSet(id) ? '<i class="tdot" aria-hidden="true"></i>' : '') + '</button>').join('') + '</div>'
+    + '<p class="small muted" style="margin:6px 0 10px">' + (host ? 'Runs on this PC through the host layer (AutoHotkey). The keyboard itself has no multi-tap, hold or knob settings.' : 'Written to the keyboard.')
+    + (timed ? ' <label class="tm">Tap window <input type="number" min="100" max="800" step="10" data-timing="tap" data-fid="tmtap" value="' + st.timing.tap + '"> ms</label><label class="tm">Hold after <input type="number" min="150" max="1500" step="10" data-timing="hold" data-fid="tmhold" value="' + st.timing.hold + '"> ms</label>' : '') + '</p>';
+  const anySet = trigList(k).some(([id]) => isK ? st.enc[id] !== undefined && st.enc[id] !== base().enc[id] : getV(st, L, k, id) !== undefined) || (!isK && !!st.rings[k]);
+  function editorBody() {
+    return '<div class="opts" role="radiogroup" aria-label="Action type">' + D.action_types.map(x => '<button type="button" class="opt" role="radio" aria-checked="' + (x === e.type) + '" data-act="etype" data-v="' + x + '" data-fid="et' + x + '">' + x + '</button>').join('') + '</div>'
+      + '<div class="fld"><label for="edv">' + (e.type === 'Disable' || e.type === 'Default' ? 'Value' : e.type) + '</label>' + f.replace('data-fid="edv"', 'id="edv" data-fid="edv"') + '</div>'
+      + (e.type === 'Key' || e.type === 'Key combo' ? '<div class="rec"><button type="button" class="btn" data-act="rec" data-fid="rec" aria-pressed="' + !!ui.rec + '">' + (ui.rec ? 'Press a key or combo now (Esc cancels)' : 'Record') + '</button>' + (ui.rec ? '' : '<span class="small muted">Press the key or combo you want instead of typing it.</span>') + '</div>' : '')
+      + (e.err ? '<p class="err" role="alert">' + esc(e.err) + '</p>' : '')
+      + '<div class="acts"><button class="btn pri" type="button" data-act="apply">Stage change</button><button class="btn" type="button" data-act="clearall" data-fid="clearall"' + (anySet ? '' : ' disabled') + '>Clear all</button><button class="btn" type="button" data-act="close" data-fid="close">Close</button></div>';
+  }
+  if (isK) return '<div class="cols"><div><h3>Encoder knob</h3><p class="small muted" style="margin-top:8px;max-width:34ch">Every knob action runs on this PC through the host layer, so it works on any layer.</p>'
+    + '<p class="small muted" style="margin-top:8px">' + (cur ? 'Staged: ' + esc(dispV(cur)) : 'Staged: nothing') + (was !== cur ? '<br>Last written: ' + esc(dispV(was)) : '') + '</p></div>'
+    + '<div style="grid-column:span 2">' + trigRow + editorBody() + '</div></div>';
+  return '<div class="cols"><div><h3 style="display:flex;gap:10px;align-items:baseline"><span class="num l">' + esc(nm || k) + '</span>' + tag + '</h3>'
+    + (nm ? '<p class="small muted" style="margin-top:4px">Physical key: ' + esc(k) + '</p>' : '')
+    + '<div class="fld"><label for="kname">Name on the board</label><input type="text" id="kname" data-kname="' + esc(k) + '" data-fid="kname" maxlength="16" list="knl" value="' + esc(nm) + '" placeholder="' + esc(k) + '"><datalist id="knl">' + [...new Set(KM.map(x => x[0]).concat(KEYHINT))].map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>'
+    + '<button type="button" class="btn" style="margin-top:8px" data-act="pickname" data-fid="pickname" aria-pressed="' + !!ui.pick + '">' + (ui.pick ? 'Click a key on the board (Esc to cancel)' : 'Pick a key on the board') + '</button><br><span class="small muted">Shows on the keycap and in the list. Leave empty for the printed legend. Stays in this app; nothing is written to the keyboard.</span></div>'
+    + '<p class="small muted" style="margin-top:8px">' + (cur ? 'Staged: ' + esc(dispV(cur)) : 'Staged: ' + (t === 'tap' ? 'default' : 'nothing')) + (was !== cur ? '<br>Last written: ' + (was ? esc(dispV(was)) : t === 'tap' ? 'default' : 'nothing') : '') + '</p></div>'
+    + '<div style="grid-column:span 2">' + trigRow + editorBody() + '</div></div>';
+}
+function pLight() {
+  const l = st.light, lg = D.lighting;
+  return '<div class="cols u"><div><h4>Effect</h4><h3 style="font-size:26px">' + esc(l.mode) + '</h3>'
+    + '<div style="margin-top:16px"><h4 id="rbl">Brightness</h4>' + N('lb', l.brightness, 'xl') + '<span class="mono muted"> / ' + lg.current.brightnessMax + '</span>' + range('rb', l.brightness, 1, lg.current.brightnessMax, 'Brightness') + '</div></div>'
+    + '<div><h4>Speed</h4>' + N('ls', l.speed, 'xl') + '<span class="mono muted"> / ' + lg.current.speedMax + '</span>' + range('rs', l.speed, 1, lg.current.speedMax, 'Speed')
+    + '<h4 style="margin-top:18px">Profiles</h4><div class="opts" role="group" aria-label="Profiles">' + lg.profiles.map(p => {
+      const cols = p.base ? [p.base, ...Object.values(p.groups)] : [p.color];
+      return '<button type="button" class="opt" data-act="prof" data-v="' + esc(p.name) + '" data-fid="p' + esc(p.name) + '" aria-pressed="' + (l.profile === p.name) + '">' + cols.map(c => '<i class="dot" style="background:' + c + '"></i>').join('') + esc(p.name) + '</button>';
+    }).join('') + '</div></div>'
+    + '<div><div class="row2"><span id="lvl">Live lighting</span><button type="button" class="sw" role="switch" aria-checked="' + st.live.on + '" aria-labelledby="lvl" data-act="live" data-fid="live"><i class="kn"></i></button></div>'
+    + '<p class="small muted">' + esc(lg.live.note) + ' Applies now; not written to the keyboard.</p>'
+    + lg.live.examples.map((x, i) => '<div class="row2"><span class="small" id="rl' + i + '">' + esc(x) + '</span><button type="button" class="sw" role="switch" aria-checked="' + !!st.live.rules[x] + '" aria-labelledby="rl' + i + '" data-act="rule" data-v="' + esc(x) + '" data-fid="rule' + i + '"' + (st.live.on ? '' : ' disabled') + '><i class="kn"></i></button></div>').join('')
+    + (st.live.on ? '' : '<p class="small muted">Turn on Live lighting to use rules.</p>') + '</div></div>'
+    + '<h4 style="margin-top:20px">All ' + lg.modes.length + ' effects</h4><div class="opts" role="group" aria-label="Effects">' + lg.modes.map(m => '<button type="button" class="opt" data-act="fx" data-v="' + esc(m) + '" aria-pressed="' + (l.mode === m) + '">' + esc(m) + '</button>').join('') + '</div>';
+}
+function pScreen() {
+  const c = st.lcd, L = D.device.lcd;
+  const fr = c.frames === null ? 'frames counted on write' : c.frames + ' of ' + L.maxFrames + ' frames';
+  return '<div class="cols"><div class="split"><div class="pv lcdslot" role="img" aria-label="Screen preview, 128 by 128"></div><div><h3>' + esc(c.current) + '</h3><p class="small muted">' + fr + '</p>'
+    + '<div class="acts"><button class="btn" type="button" data-act="upload" data-fid="up">Upload image or GIF</button></div></div></div>'
+    + '<input type="file" id="file" accept="image/*" hidden>'
+    + '<div><h4>Frame delay</h4>' + N('ld', c.delay, 'xl') + '<span class="mono muted"> ms</span>' + range('rd', c.delay, L.frameDelayMs[0], L.frameDelayMs[1], 'Frame delay in milliseconds')
+    + (ui.upErr ? '<p class="err" role="alert">' + esc(ui.upErr) + '</p>' : '<p class="small muted">Scaled to 128×128 on write.</p>') + '</div>'
+    + '<div><h4>Library</h4><ul class="list">' + D.lcd.library.map(it => '<li><span>' + esc(it.name) + ' <span class="muted small mono">' + it.frames + '</span></span><button class="opt" type="button" data-act="lib" data-v="' + esc(it.name) + '" aria-pressed="' + (c.current === it.name) + '">' + (c.current === it.name ? 'In use' : 'Use') + '</button></li>').join('') + '</ul></div></div>';
+}
+function pMac() {
+  const cap = D.macros.capacityActions, u = macUsed(), over = u > cap;
+  return '<div class="cols"><div><h4>Macro memory</h4>' + N('mu', u, 'xl') + '<span class="mono muted"> / ' + cap + ' actions</span><div class="bar" style="margin-top:12px" role="img" aria-label="' + u + ' of ' + cap + ' actions used"><i style="width:' + Math.min(100, u / cap * 100) + '%"></i></div>'
+    + (over ? '<p class="err" role="alert">Over capacity: remove a macro before writing.</p>' : '') + '<div class="acts"><button class="btn" type="button" data-act="macadd" data-fid="madd">Add macro (4 actions)</button></div></div>'
+    + '<div style="grid-column:span 2">' + (st.macros.length ? '<ul class="list">' + st.macros.map((m, i) => '<li><span>' + esc(m.name) + ' <span class="muted small">' + (m.key === 'none' ? 'no trigger' : esc(m.key)) + '</span></span><span style="display:flex;align-items:center;gap:10px"><span class="muted small mono">' + m.steps + ' steps</span><button class="btn q" type="button" data-act="macdel" data-i="' + i + '" aria-label="Remove macro ' + esc(m.name) + '">Remove</button></span></li>').join('') + '</ul>' : '<p class="muted">No macros on the board.</p>') + '</div></div>';
+}
+function pSet() {
+  const lv = D.settings.keyResponse.levels, k = st.keyResponse, o = lv[k - 1];
+  return '<div class="cols"><div><h4 id="krl">Key response (wired)</h4><div class="grp" role="group" aria-labelledby="krl"><button class="opt" type="button" data-act="kr" data-v="-1" data-fid="kr-m" aria-label="Faster response" ' + (k <= 1 ? 'disabled' : '') + '>−</button>' + N('kr', k, 'xl') + '<button class="opt" type="button" data-act="kr" data-v="1" data-fid="kr-p" aria-label="More stable response" ' + (k >= 5 ? 'disabled' : '') + '>+</button></div>'
+    + '<p class="mono" style="margin-top:8px">' + o.wired + '</p><p class="small muted">' + (o.note ? esc(o.note) : 'Level ' + k + ' of 5') + '</p></div>'
+    + '<div><h4 id="slp">Sleep after</h4><div class="opts" role="group" aria-labelledby="slp">' + D.settings.sleep.options.map(s => '<button type="button" class="opt" data-act="sleep" data-v="' + s + '" aria-pressed="' + (st.sleep === s) + '">' + s + '</button>').join('') + '</div>'
+    + '<h4 id="fml" style="margin-top:18px">Fn key mode</h4><div class="opts" role="group" aria-labelledby="fml">' + D.settings.fnMode.options.map(s => '<button type="button" class="opt" data-act="fnm" data-v="' + s + '" aria-pressed="' + (st.fnMode === s) + '">' + s + '</button>').join('') + '</div></div>'
+    + '<div><h4>Locks</h4>' + Object.keys(st.locks).map((k2, i) => '<div class="row2"><span id="lk' + i + '">Lock ' + esc(k2) + '</span><button type="button" class="sw" role="switch" aria-checked="' + st.locks[k2] + '" aria-labelledby="lk' + i + '" data-act="lock" data-v="' + esc(k2) + '" data-fid="lk' + i + '"><i class="kn"></i></button></div>').join('') + '</div></div>';
+}
+const pChg = trayHtml;
+const PANELS = { chg: pChg, keys: pKeys, light: pLight, screen: pScreen, mac: pMac, set: pSet };
+function renderPanel() {
+  if (ui.panel === null) return;
+  $('panel').innerHTML = PANELS[ui.panel]();
+  $('panel').setAttribute('aria-label', ui.panel === 'chg' ? 'Changes' : MODES.find(m => m[0] === ui.panel)[1]);
+  const u = $('undo'), r = $('redo'); if (u) { u.disabled = !hist.length; u.onclick = undo; r.disabled = !fut.length; r.onclick = redo; }
+}
+
+function render() {
+  const a = document.activeElement, fid = a && a.dataset ? a.dataset.fid : null;
+  renderBoard(); renderMaps(); renderStrip(); renderDock(); renderPanel();
+  syncMotion();
+  if (fid) { const n = document.querySelector('[data-fid="' + fid.replace(/"/g, '') + '"]'); if (n && n !== document.activeElement) n.focus({ preventScroll: true }); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+  const a = b.dataset.act, v = b.dataset.v;
+  if (a === 'layer') { ui.layer = v; ui.sel = null; ui.ed = null; render(); }
+  else if (a === 'knob') { if (b.id === 'knob' && !(kdrag && kdrag.skip)) knobAct('press'); ui.sel = 'Knob'; edFor('Knob', b.dataset.trig || 'left'); ui.panel = 'keys'; ui.confirm = false; render(); }
+  else if (a === 'key' && ui.pick && ui.sel && ui.sel !== 'Knob' && ui.sel !== 'Fn') { const t = ui.sel, nm = b.dataset.k; ui.pick = false; commit(() => { if (nm === t) delete st.names[t]; else st.names[t] = nm; }); }
+  else if (a === 'ringpreview') openRing(ui.sel, (ui.ed && ui.ed.slots) || st.rings[ui.sel] || RING_DEF, null, ui.ed && ui.ed.icons);
+  else if (a === 'ringfocus') { const inp = document.querySelector('.rslot[data-slot="' + v + '"]'); if (inp) inp.focus(); }
+  else if (a === 'ringicon') { ui.iconFor = ui.iconFor === +v ? -1 : +v; render(); }
+  else if (a === 'ringiconset') { ui.ed.icons[ui.iconFor] = v || null; ui.iconFor = -1; render(); }
+  else if (a === 'ringslot') closeRing(+v);
+  else if (a === 'rec') { ui.rec = !ui.rec; recMod = null; render(); }
+  else if (a === 'pickname') { ui.pick = !ui.pick; render(); }
+  else if (a === 'key') { if (b.dataset.k === 'Fn') { ui.sel = 'Fn'; ui.panel = 'keys'; ui.ed = null; render(); } else { selectKey(b.dataset.k); if (b.dataset.trig && ui.sel) { edFor(ui.sel, b.dataset.trig); render(); } } }
+  else if (a === 'close') { ui.sel = null; ui.ed = null; render(); }
+  else if (a === 'showmap') { ui.showMap = !ui.showMap; render(); }
+  else if (a === 'mode') { ui.confirm = false; ui.panel = ui.panel === v ? null : v; if (ui.panel !== 'keys') { ui.sel = null; ui.ed = null; } render(); }
+  else if (a === 'etype') { ui.ed.type = v; ui.ed.val = ''; ui.ed.err = ''; ui.ed.slots = null; ui.ed.icons = null; ui.iconFor = -1; render(); }
+  else if (a === 'apply') applyEd();
+  else if (a === 'trig') { edFor(ui.sel, v); render(); }
+  else if (a === 'clearall') { const k = ui.sel, L = ui.layer; commit(() => { trigList(k).forEach(([t]) => setV(L, k, t, undefined)); if (k !== 'Knob') { delete st.rings[k]; delete st.ringIcons[k]; } }); edFor(k, ui.trig || (k === 'Knob' ? 'left' : 'tap')); render(); toast((k === 'Knob' ? 'Knob' : k) + ': all functions cleared'); }
+  else if (a === 'ahksnip') { const sn = AHK_SNIP[+v][1]; ui.ed.val = (ui.ed.val ? ui.ed.val.replace(/\s*$/, '\n') : '') + sn; ui.ed.err = ''; render(); }
+  else if (a === 'fx') commit(() => st.light.mode = v);
+  else if (a === 'prof') commit(() => { st.light.profile = st.light.profile === v ? null : v; const p = D.lighting.profiles.find(x => x.name === v); if (st.light.profile && p.mode) st.light.mode = p.mode; });
+  else if (a === 'live') commit(() => st.live.on = !st.live.on);
+  else if (a === 'rule') commit(() => st.live.rules[v] = !st.live.rules[v]);
+  else if (a === 'upload') $('file').click();
+  else if (a === 'lib') { ui.img = null; ui.file = null; ui.url = ''; ui.upErr = ''; const it = D.lcd.library.find(x => x.name === v); commit(() => { st.lcd.current = it.name; st.lcd.frames = it.frames; }); }
+  else if (a === 'macadd') { let n = 1; while (st.macros.some(m => m.name === 'Macro ' + n)) n++; if (macUsed() + 4 > D.macros.capacityActions) return toast('Not enough macro capacity'); commit(() => st.macros.push({ name: 'Macro ' + n, steps: 4, key: 'none' })); }
+  else if (a === 'macdel') commit(() => st.macros.splice(+b.dataset.i, 1));
+  else if (a === 'kr') commit(() => st.keyResponse += +v);
+  else if (a === 'sleep') commit(() => st.sleep = v);
+  else if (a === 'lock') commit(() => st.locks[v] = !st.locks[v]);
+  else if (a === 'fnm') commit(() => st.fnMode = v);
+  else if (a === 'review') { ui.confirm = true; ui.panel = 'chg'; ui.sel = null; ui.ed = null; render(); sendNow(false); }
+  else if (a === 'cancel') { ui.confirm = false; ui.plan = null; render(); }
+  else if (a === 'write') { if (!(ui.plan && ui.plan.busy)) sendNow(true); }
+  else if (a === 'revert') commit(() => { st = clone(wr); });
+  else if (a === 'revone') { const d = diffs()[+b.dataset.i]; if (d) commit(() => d.rev()); }
+});
+// click outside the open panel closes it (keys and the mapping list keep it open, they drive it)
+document.addEventListener('pointerdown', e => {
+  if (ui.panel === null || !e.target.closest) return;
+  if (e.target.closest('#dockbox, #dock, #maps, #toast, #lcdhit, #knob, #aring, [data-act="key"], [data-act="showmap"], [data-act="layer"]')) return;
+  ui.panel = null; ui.sel = null; ui.ed = null; ui.confirm = false; render();
+});
+function editLcd() { ui.panel = 'screen'; ui.sel = null; ui.ed = null; ui.confirm = false; render(); $('file').click(); }
+document.addEventListener('dblclick', e => { if (e.target.closest && e.target.closest('#lcdhit')) { e.preventDefault(); editLcd(); } });
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.id === 'lcdhit') { e.preventDefault(); editLcd(); } });
+// encoder: turn with wheel, arrows or drag; click presses it and opens its editor; the HUD shows what the mapped action does
+let vol = 42, krot = 0, khT, kdrag = null;
+function knobAct(k) {
+  const act = st.enc[k], kn = $('knob'), h = $('khud');
+  if (k !== 'press') { krot += k === 'left' ? -18 : 18; kn.style.setProperty('--rot', krot + 'deg'); }
+  else { kn.classList.add('down'); setTimeout(() => kn.classList.remove('down'), 140); }
+  if (act === 'Volume up' || act === 'Volume down') { vol = Math.max(0, Math.min(100, vol + (act === 'Volume up' ? 2 : -2))); h.innerHTML = 'Volume ' + vol + '<span class="kb"><i style="width:' + vol + '%"></i></span>'; }
+  else h.textContent = act;
+  h.classList.add('on'); clearTimeout(khT); khT = setTimeout(() => h.classList.remove('on'), 1100);
+}
+document.addEventListener('wheel', e => { if (e.target.closest && e.target.closest('#knob')) { e.preventDefault(); knobAct(e.deltaY > 0 ? 'left' : 'right'); } }, { passive: false });
+document.addEventListener('keydown', e => {
+  if (e.target.id !== 'knob') return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); knobAct('left'); }
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); knobAct('right'); }
+});
+document.addEventListener('pointerdown', e => { if (e.target.closest && e.target.closest('#knob')) kdrag = { y: e.clientY, x: e.clientX, moved: false }; });
+document.addEventListener('pointermove', e => {
+  if (!kdrag) return;
+  const d = (e.clientX - kdrag.x) - (e.clientY - kdrag.y);
+  if (Math.abs(d) >= 14) { knobAct(d > 0 ? 'right' : 'left'); kdrag.x = e.clientX; kdrag.y = e.clientY; kdrag.moved = true; }
+});
+document.addEventListener('pointerup', () => { if (kdrag && kdrag.moved) kdrag.skip = true; setTimeout(() => { kdrag = null; }, 0); });
+function ringHi(i) {
+  document.querySelectorAll('.redit [data-w]').forEach(n => n.classList.toggle('on', +n.dataset.w === i));
+}
+document.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.redit')) ringHi(e.target.dataset.slot !== undefined ? +e.target.dataset.slot : -1); });
+document.addEventListener('focusout', e => { if (e.target.closest && e.target.closest('.redit')) ringHi(-1); });
+document.addEventListener('pointerover', e => { const li = e.target.closest && e.target.closest('.rlist li'); if (li) ringHi(+li.dataset.w); else if (e.target.closest && e.target.closest('.redit') && !document.activeElement.closest('.redit')) ringHi(-1); });
+
+function dockPlace() { const d = $('dockfix'); d.classList.toggle('attop', scrollY > 0 && d.getBoundingClientRect().top <= 11); }
+addEventListener('scroll', dockPlace, { passive: true });
+dockPlace();
+
+/* ---------- Action ring overlay ---------- */
+let ringUI = null;
+function openRing(k, slots, holdLab, icons) {
+  icons = icons || st.ringIcons[k] || [];
+  closeRing(null);
+  const el = document.createElement('div');
+  el.id = 'aring';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Action ring for ' + k);
+  el.innerHTML = '<div class="wheel"><div class="band"></div>' + slots.map((v, i) => {
+    const [x, y] = ringPt(44, i * 360 / RING_N);
+    return '<button type="button" class="rs' + (v ? '' : ' empty') + '" data-act="ringslot" data-v="' + i + '" aria-label="' + esc(slotLabel(v)) + '" style="left:' + (x / 1.2).toFixed(2) + '%;top:' + (y / 1.2).toFixed(2) + '%">' + ringIcon(v, icons[i]) + '</button>';
+  }).join('') + '<div class="hub" aria-live="polite"><b>' + esc(st.names[k] || k) + '</b><span>Action ring</span></div></div>';
+  document.body.appendChild(el);
+  ringUI = { el, slots, hold: holdLab, pick: -1, key: st.names[k] || k };
+  el.addEventListener('pointermove', e => {
+    const w = el.querySelector('.wheel').getBoundingClientRect(), dx = e.clientX - (w.left + w.width / 2), dy = e.clientY - (w.top + w.height / 2);
+    ringPick(Math.hypot(dx, dy) < w.width * 0.25 ? -1 : Math.round(((Math.atan2(dx, -dy) / (2 * Math.PI) * RING_N) + RING_N) % RING_N) % RING_N);
+  });
+  el.addEventListener('focusin', e => { const b = e.target.closest('.rs'); if (b) ringPick(+b.dataset.v); });
+  el.addEventListener('click', e => { if (e.target === el) closeRing(null); else if (!e.target.closest('.rs') && ringUI.pick >= 0) closeRing(ringUI.pick); });
+  setPreviewPressed(true);
+}
+function ringPick(pick) {
+  if (!ringUI) return;
+  ringUI.pick = pick;
+  ringUI.el.querySelectorAll('.rs').forEach((b, i) => b.classList.toggle('on', i === pick));
+  const hub = ringUI.el.querySelector('.hub'), v = pick >= 0 ? ringUI.slots[pick] : null;
+  hub.innerHTML = pick >= 0 ? '<b>' + esc(slotLabel(v)) + '</b><span>' + (v && slotLabel(v) !== v ? esc(v) : v ? 'Click to run' : 'Empty slot') + '</span>' : '<b>' + esc(ringUI.key) + '</b><span>Action ring</span>';
+}
+function setPreviewPressed(on) { const b = document.querySelector('[data-act="ringpreview"]'); if (b) b.setAttribute('aria-pressed', on); }
+function closeRing(i) {
+  if (!ringUI) return;
+  const r = ringUI; ringUI = null; r.el.remove(); setPreviewPressed(false);
+  if (i !== null && i >= 0 && r.slots[i]) toast('Ring: ' + slotLabel(r.slots[i]) + ' (runs on this PC)');
+}
+
+/* ---------- live key rings + key recording ---------- */
+const CODE = { Escape: 'Esc', Backquote: '`', Minus: '-', Equal: '=', Backspace: 'Bksp', Delete: 'Del', Tab: 'Tab', BracketLeft: '[', BracketRight: ']', Backslash: '\\', PageUp: 'PgUp', CapsLock: 'Caps', Semicolon: ';', Quote: "'", Enter: 'Enter', PageDown: 'PgDn', ShiftLeft: 'Shift', ShiftRight: 'RShift', Comma: ',', Period: '.', Slash: '/', ArrowUp: 'Up', End: 'End', ControlLeft: 'Ctrl', MetaLeft: 'Win', AltLeft: 'Alt', Space: 'Space', AltRight: 'RAlt', ArrowLeft: 'Left', ArrowDown: 'Down', ArrowRight: 'Right' };
+// names as the editor writes them (what a key sends)
+const SENDNAME = { Escape: 'Esc', ControlRight: 'Right Ctrl', ControlLeft: 'Ctrl', ShiftLeft: 'Shift', ShiftRight: 'Right Shift', AltLeft: 'Alt', AltRight: 'Right Alt', MetaLeft: 'Win', MetaRight: 'Win', NumpadMultiply: 'Keypad *', NumpadDivide: 'Keypad /', NumpadSubtract: 'Keypad -', NumpadAdd: 'Keypad +', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Backquote: '`', Delete: 'Delete', Backspace: 'Backspace', Space: 'Space' };
+const MODS = { ControlLeft: 'Ctrl', ControlRight: 'Ctrl', ShiftLeft: 'Shift', ShiftRight: 'Shift', AltLeft: 'Alt', AltRight: 'Alt', MetaLeft: 'Win', MetaRight: 'Win' };
+let recMod = null;
+function sendName(e) {
+  if (SENDNAME[e.code]) return SENDNAME[e.code];
+  if (/^Key[A-Z]$/.test(e.code)) return e.code.slice(3);
+  if (/^Digit\d$/.test(e.code)) return e.code.slice(5);
+  if (/^Numpad\d$/.test(e.code)) return 'Keypad ' + e.code.slice(6);
+  if (/^F\d+$/.test(e.code) || e.code === 'PrintScreen' || e.code === 'Insert' || e.code === 'Home' || e.code === 'End' || e.code === 'PageUp' || e.code === 'PageDown' || e.code === 'Tab' || e.code === 'Enter') return e.code;
+  return e.key.length === 1 ? e.key.toUpperCase() : e.key;
+}
+function recordAs(type, val) { ui.rec = false; recMod = null; ui.ed.type = type; ui.ed.val = val; ui.ed.err = ''; render(); toast('Recorded ' + val); }
+// which board key a physical press belongs to: its own cap, else the key remapped to send it (F13 -> F1 etc.)
+function boardKeyFor(e) {
+  let lab = CODE[e.code] || (/^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : /^Digit\d$/.test(e.code) ? e.code.slice(5) : /^F([1-9]|1[0-2])$/.test(e.code) ? e.code : null);
+  if (lab) return lab;
+  const sent = sendName(e), m = st.layers.normal;
+  return Object.keys(m).find(k => m[k] === sent) || null;
+}
+function ring(lab, held) {
+  const el = document.querySelector('#hot .key[data-k="' + CSS.escape(lab) + '"]');
+  if (!el) return;
+  el.classList.toggle('down', held);
+  if (!held) return;
+  const r = document.createElement('div');
+  r.className = 'ring';
+  r.style.cssText = 'left:' + el.style.left + ';top:' + el.style.top + ';width:' + el.style.width + ';height:' + el.style.height;
+  $('hot').appendChild(r);
+  setTimeout(() => r.remove(), document.documentElement.dataset.motion === 'on' ? 600 : 260);
+}
+document.addEventListener('keydown', e => {
+  if (ui.rec && ui.ed) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.code === 'Escape' && !recMod) { ui.rec = false; return render(); }
+    if (MODS[e.code]) { recMod = recMod || e.code; return; }
+    const mods = ['Ctrl', 'Alt', 'Shift', 'Win'].filter(m => (m === 'Ctrl' && e.ctrlKey) || (m === 'Alt' && e.altKey) || (m === 'Shift' && e.shiftKey) || (m === 'Win' && e.metaKey));
+    const k = sendName(e);
+    return mods.length ? recordAs('Key combo', mods.concat(k).join('+')) : recordAs('Key', k);
+  }
+  if (ringUI && e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); return closeRing(null); }
+  if (!e.repeat) {
+    const lab = boardKeyFor(e);
+    if (lab) ring(lab, true);
+    const tx = e.target.matches && e.target.matches('input,select,textarea');
+    if (lab && !tx && !ringUI && st.layers[ui.layer][lab] === 'Action ring') { e.preventDefault(); openRing(lab, st.rings[lab] || RING_DEF, lab); }
+  }
+}, true);
+document.addEventListener('keyup', e => {
+  if (ui.rec && ui.ed) {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (recMod === e.code) recordAs('Key', SENDNAME[e.code]);   // a lone modifier, e.g. Right Ctrl
+    return;
+  }
+  const lab = boardKeyFor(e); if (lab) ring(lab, false);
+}, true);
+window.addEventListener('blur', () => document.querySelectorAll('#hot .key.down').forEach(k => k.classList.remove('down')));
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.ed) { ui.ed.val = t.value; ui.ed.err = ''; }
+  if (t.dataset.slot !== undefined && ui.ed && ui.ed.slots) { const i = +t.dataset.slot; ui.ed.slots[i] = t.value; ui.ed.err = ''; const ib = document.querySelector('.ricon[data-v="' + i + '"]'); if (!ui.ed.icons[i]) document.querySelectorAll('.ricon[data-v="' + i + '"], .rmb[data-v="' + i + '"]').forEach(n => { n.innerHTML = ringIcon(t.value); n.classList.toggle('empty', !t.value.trim()); }); }
+});
+document.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.layer !== undefined) { ui.layer = e.target.value; ui.sel = null; ui.ed = null; return render(); }
+  const t = e.target;
+  if (t.dataset.ed) { ui.ed.val = t.value; }
+  if (t.dataset.timing) { const k = t.dataset.timing, n = Math.round(+t.value); if (n > 0 && n !== st.timing[k]) commit(() => st.timing[k] = n); }
+  if (t.dataset.kname !== undefined) { const k = t.dataset.kname, v = t.value.trim(); if (v !== (st.names[k] || '')) commit(() => { if (v) st.names[k] = v; else delete st.names[k]; }); }
+  if (t.dataset.rng) { const id = t.dataset.rng, n = +t.value; commit(() => { if (id === 'rb') st.light.brightness = n; else if (id === 'rs') st.light.speed = n; else st.lcd.delay = n; }); }
+  if (t.id === 'file' && t.files[0]) {
+    const f = t.files[0]; ui.upErr = '';
+    if (!/^image\//.test(f.type)) { ui.upErr = f.name + ' is not an image or GIF.'; return render(); }
+    if (f.size > 8 * 1024 * 1024) { ui.upErr = f.name + ' is over 8 MB; pick a smaller file.'; return render(); }
+    if (ui.url) URL.revokeObjectURL(ui.url);
+    const im = new Image(); im.onload = () => paintLcd(1.2); ui.url = URL.createObjectURL(f); im.src = ui.url; ui.img = im; ui.file = f; ui.gif = f.type === 'image/gif';
+    commit(() => { st.lcd.current = f.name; st.lcd.frames = f.type === 'image/gif' ? null : 1; });
+  }
+});
+document.addEventListener('keydown', e => {
+  const tx = e.target.matches && e.target.matches('input[type=text]');
+  if ((e.ctrlKey || e.metaKey) && !tx) {
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+  } else if (e.key === 'Escape' && ui.pick) { ui.pick = false; render(); }
+  else if (e.key === 'Escape' && ui.sel !== null) { const k = ui.sel; ui.sel = null; ui.ed = null; render(); const n = document.querySelector('[data-fid="k' + k + '"]'); if (n) n.focus(); }
+  else if (e.key === 'Escape' && ui.panel !== null) { const p = ui.panel; ui.panel = null; ui.confirm = false; render(); const n = document.querySelector('[data-fid="d' + p + '"]'); if (n) n.focus(); }
+});
+render();
+</script>
+</body>
+</html>

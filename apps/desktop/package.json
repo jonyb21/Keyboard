@@ -1,0 +1,13 @@
+{
+  "name": "aula-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop control app for the AULA F75 Max",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.9.0"
+  }
+}

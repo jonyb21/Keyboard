@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 .venv/
 .local-assets/
+node_modules/
