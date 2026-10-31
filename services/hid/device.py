@@ -19,6 +19,8 @@ WIRED_VID = 0x0C45
 WIRED_PID = 0x800A
 WIRED_PRODUCT_STRING = "AULA F75Max"
 WIRED_RELEASE_NUMBER = 0x0108
+# V1.13 (DP25223, 2026-10-15) flashed 2026-10-31; same vendor app v1.0.0.5 drives both.
+WIRED_RELEASE_NUMBERS = frozenset({WIRED_RELEASE_NUMBER, 0x0113})
 DONGLE_VID = 0x05AC
 DONGLE_PID = 0x024F
 
@@ -77,7 +79,7 @@ class Endpoint:
             and self.vendor_id == WIRED_VID
             and self.product_id == WIRED_PID
             and self.product_string == WIRED_PRODUCT_STRING
-            and self.release_number == WIRED_RELEASE_NUMBER
+            and self.release_number in WIRED_RELEASE_NUMBERS
         )
 
     @property

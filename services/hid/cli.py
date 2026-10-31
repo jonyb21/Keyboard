@@ -247,7 +247,7 @@ def _allow_exact_wired_mutation(endpoint, out, operation: str) -> bool:
     print(
         f"refusing {operation}: 0C45:800A is not sufficient identity; "
         f"expected product {device.WIRED_PRODUCT_STRING!r} release "
-        f"0x{device.WIRED_RELEASE_NUMBER:04X}, got "
+        f"{'/'.join(f'0x{r:04X}' for r in sorted(device.WIRED_RELEASE_NUMBERS))}, got "
         f"{endpoint.product_string!r} release {release}",
         file=out,
     )

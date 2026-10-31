@@ -181,6 +181,10 @@ class TestDiscover(unittest.TestCase):
         ).wired_config
         self.assertFalse(wrong_product.is_exact_wired_target)
         self.assertFalse(wrong_revision.is_exact_wired_target)
+        v113 = device.discover(
+            [rec(0x0C45, 0x800A, 0xFF13, 0x0001, 3, release_number=0x0113)]
+        ).wired_config
+        self.assertTrue(v113.is_exact_wired_target)
 
     def test_exact_wired_identity_wins_over_shared_pid_first_match(self):
         shared = rec(
