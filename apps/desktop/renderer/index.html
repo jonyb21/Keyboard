@@ -129,6 +129,9 @@ html[data-motion="on"] .khud{transition:opacity .15s,visibility .15s}
 .key:focus-visible{outline:3px solid var(--acc);outline-offset:2px;box-shadow:0 0 0 2px rgb(0 0 0/.75)}
 .key.map{border-color:var(--acc);box-shadow:0 0 0 1px rgb(0 0 0/.55)}
 .key.stg{border:2px dashed var(--acc)}
+.grp.app{flex-wrap:wrap;justify-content:center;max-width:100%}
+#appsel{max-width:min(240px,100%)}
+.key.ovr{outline:2px solid var(--acc);outline-offset:2px}
 .key.hl{box-shadow:0 0 0 3px oklch(0.87 0.2 125/.55),0 0 0 4px rgb(0 0 0/.6)}
 .key.sel{border:2px solid var(--ink);box-shadow:0 0 0 3px oklch(0.87 0.2 125/.8),0 0 0 4px rgb(0 0 0/.6)}
 .key.fnk{cursor:not-allowed}
@@ -343,7 +346,7 @@ const D = {
     "normal": {"`":"PrintScreen","Win":"Alt","Alt":"Win","RAlt":"Right Ctrl","PgUp":"Keypad *","PgDn":"Keypad /","End":"Keypad -","F1":"F13","F3":"F14","F5":"F15","F6":"F18","F7":"F19","F8":"F20","F9":"F21","F10":"F22","F11":"F23","F12":"F24"},
     "fn": {"F1":"Mute","F2":"Volume down","F3":"Volume up","F4":"Play/Pause","Up":"Brightness up","Down":"Brightness down","Left":"Effect speed -","Right":"Effect speed +","Win":"Lock Win key"}
   },
-  "action_types": ["Key","Key combo","Media","Mouse","System","Macro","Open app","AutoHotkey","Action ring","Disable","Default"],
+  "action_types": ["Key","Key combo","Media","Mouse","System","Macro","Open app","AutoHotkey","Run script","Action ring","Disable","Default"],
   "settings": {"keyResponse": {"value": 2, "levels": [{"level":1,"wired":"2-3 ms","note":"fastest, can chatter"},{"level":2,"wired":"5-6 ms"},{"level":3,"wired":"9-10 ms"},{"level":4,"wired":"13-14 ms"},{"level":5,"wired":"17-18 ms","note":"most stable"}]},
     "sleep": {"value":"5 min","options":["Never","1 min","5 min","30 min"]},
     "locks": {"Win key": false, "Alt+Tab": false, "Alt+F4": false},
@@ -416,22 +419,31 @@ function base() {
     light: { mode: c.mode, brightness: c.brightness, speed: c.speed, profile: null },
     live: { on: false, rules: {} },
     lcd: { current: 'Factory animation', frames: 251, delay: 100 }, macros: clone(D.macros.items),
-    names: {}, rings: {}, ringIcons: {}, trig: { normal: {}, fn: {} }, timing: { tap: 250, hold: 300 }, enc: { left: 'Volume down', right: 'Volume up', press: 'Mute' } };
+    names: {}, rings: {}, ringIcons: {}, apps: {}, trig: { normal: {}, fn: {} }, timing: { tap: 250, hold: 300 }, enc: { left: 'Volume down', right: 'Volume up', press: 'Mute' } };
 }
 let wr = base(), st = base(), at = AT0;
 try {
   const s = JSON.parse(localStorage.getItem(SK) || 'null');
   if (s && s.st && s.wr && s.st.layers && s.wr.layers && s.st.light && s.st.macros) { st = s.st; wr = s.wr; at = s.at || AT0; }
 } catch (e) { /* storage unavailable */ }
-[st, wr].forEach(o => { o.enc = Object.assign(base().enc, o.enc); if (!o.trig) o.trig = { normal: {}, fn: {} }; if (!o.timing) o.timing = base().timing; if (!o.names) o.names = {}; if (!o.rings) o.rings = {}; if (!o.ringIcons) o.ringIcons = {}; });
+[st, wr].forEach(o => { o.enc = Object.assign(base().enc, o.enc); if (!o.trig) o.trig = { normal: {}, fn: {} }; if (!o.timing) o.timing = base().timing; if (!o.names) o.names = {}; if (!o.rings) o.rings = {}; if (!o.ringIcons) o.ringIcons = {}; if (!o.apps) o.apps = {}; });
 function save() { try { localStorage.setItem(SK, JSON.stringify({ st, wr, at })); } catch (e) { /* ignore */ } }
 
 let hist = [], fut = [];
 const ENC = [['left', 'Turn left'], ['right', 'Turn right'], ['press', 'Press'], ['press2', 'Double press'], ['press3', 'Triple press'], ['hold', 'Hold'], ['pleft', 'Hold + turn left'], ['pright', 'Hold + turn right']];
 const ENC_SHORT = { left: 'Left', right: 'Right', press: 'Push', press2: 'Push 2x', press3: 'Push 3x', hold: 'Hold', pleft: 'Hold+L', pright: 'Hold+R' };
 const trigList = k => k === 'Knob' ? ENC : TRIG;
-function getV(s, L, k, t) { return k === 'Knob' ? s.enc[t] : t === 'tap' ? s.layers[L][k] : ((s.trig[L] || {})[k] || {})[t]; }
+const newApp = nm => ({ name: nm, trig: { normal: {}, fn: {} }, enc: {} });
+function putApp(x, L, k, t, v) {   // one value in an app's own overrides (k 'Knob' = its encoder)
+  const A = st.apps[x]; if (!A) return;
+  if (k === 'Knob') { if (v === undefined) delete A.enc[t]; else A.enc[t] = v; return; }
+  const m = A.trig[L][k] = A.trig[L][k] || {};
+  if (v === undefined) delete m[t]; else m[t] = v;
+  if (!Object.keys(m).length) delete A.trig[L][k];
+}
+function getV(s, L, k, t) { if (ui.app) { const a = s.apps[ui.app]; return !a ? undefined : k === 'Knob' ? a.enc[t] : ((a.trig[L] || {})[k] || {})[t]; } return k === 'Knob' ? s.enc[t] : t === 'tap' ? s.layers[L][k] : ((s.trig[L] || {})[k] || {})[t]; }
 function setV(L, k, t, v) {
+  if (ui.app) return putApp(ui.app, L, k, t, v);
   if (k === 'Knob') { const d = base().enc[t]; if (v === undefined && d === undefined) delete st.enc[t]; else st.enc[t] = v === undefined ? d : v; return; }
   if (t === 'tap') { if (v === undefined) delete st.layers[L][k]; else st.layers[L][k] = v; return; }
   const m = st.trig[L][k] = st.trig[L][k] || {};
@@ -439,10 +451,11 @@ function setV(L, k, t, v) {
   if (!Object.keys(m).length) delete st.trig[L][k];
 }
 function edFor(k, t) { ui.trig = t; ui.rec = false; ui.iconFor = -1; ui.ed = Object.assign(infer(getV(st, ui.layer, k, t)), { err: '' }); }
-const ui = { layer: 'normal', sel: null, ed: null, panel: null, confirm: false, upErr: '', img: null, gif: false, url: '', showMap: true };
+const ui = { app: '', layer: 'normal', sel: null, ed: null, panel: null, confirm: false, upErr: '', img: null, gif: false, url: '', showMap: true };
 function commit(fn) { hist.push(clone(st)); if (hist.length > 100) hist.shift(); fut = []; fn(); ui.confirm = false; save(); render(); }
-function undo() { if (!hist.length) return; fut.push(clone(st)); st = hist.pop(); save(); render(); }
-function redo() { if (!fut.length) return; hist.push(clone(st)); st = fut.pop(); save(); render(); }
+function dropGoneApp() { if (ui.app && !st.apps[ui.app]) { ui.app = ''; ui.sel = null; ui.ed = null; } }
+function undo() { if (!hist.length) return; fut.push(clone(st)); st = hist.pop(); dropGoneApp(); save(); render(); }
+function redo() { if (!fut.length) return; hist.push(clone(st)); st = fut.pop(); dropGoneApp(); save(); render(); }
 let tt;
 function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 2600); }
 
@@ -468,6 +481,15 @@ function diffs() {
       if (x === y) return;
       o.push({ tag: 'Host layer (this PC)', text: k + ' ' + n.toLowerCase() + ': ' + dispV(x) + (y ? ' (was ' + dispV(y) + ')' : ''), rev: () => { const m = st.trig[L][k] = st.trig[L][k] || {}; if (y === undefined) delete m[t]; else m[t] = y; if (!Object.keys(m).length) delete st.trig[L][k]; } });
     }));
+  });
+  new Set([...Object.keys(st.apps), ...Object.keys(wr.apps)]).forEach(x => {
+    const A = st.apps[x] || newApp(''), B = wr.apps[x] || newApp(''), nm = A.name || B.name || x;
+    const put = (L, k, t, v) => { if (!st.apps[x]) st.apps[x] = newApp(nm); putApp(x, L, k, t, v); };
+    ['normal', 'fn'].forEach(L => new Set([...Object.keys(A.trig[L] || {}), ...Object.keys(B.trig[L] || {})]).forEach(k => TRIG.forEach(([t, n]) => {
+      const a = ((A.trig[L] || {})[k] || {})[t], b = ((B.trig[L] || {})[k] || {})[t];
+      if (a !== b) o.push({ tag: 'Host layer (this PC)', text: nm + ': ' + (L === 'fn' ? 'Fn ' : '') + k + ' ' + n.toLowerCase() + ': ' + dispV(a) + (b ? ' (was ' + dispV(b) + ')' : ''), rev: () => put(L, k, t, b) });
+    })));
+    ENC.forEach(([t, n]) => { if (A.enc[t] !== B.enc[t]) o.push({ tag: 'Host layer (this PC)', text: nm + ': knob ' + n.toLowerCase() + ': ' + dispV(A.enc[t]) + (B.enc[t] ? ' (was ' + dispV(B.enc[t]) + ')' : ''), rev: () => put('normal', 'Knob', t, B.enc[t]) }); });
   });
   const lv = D.settings.keyResponse.levels;
   const f = (tag, text, ok, rev) => { if (!ok) o.push({ tag, text, rev }); };
@@ -500,6 +522,7 @@ function infer(v) {
   if (v === 'Disabled') return { type: 'Disable', val: '' };
   if (v === 'Action ring') return { type: 'Action ring', val: '' };
   if (v.startsWith('AHK: ')) return { type: 'AutoHotkey', val: v.slice(5) };
+  if (v.startsWith('Run: ')) return { type: 'Run script', val: v.slice(5) };
   if (SYSTEM.includes(v)) return { type: 'System', val: v };
   if (v.startsWith('Macro: ')) return { type: 'Macro', val: v.slice(7) };
   if (v.startsWith('Open: ')) return { type: 'Open app', val: v.slice(6) };
@@ -525,7 +548,9 @@ function applyEd() {
   else if (!v) { e.err = 'Choose or enter a value for ' + e.type + '.'; return render(); }
   else if (e.type === 'Action ring') { out = 'Action ring'; const sl = e.slots.map(x => x.trim()); if (!sl.some(Boolean)) { e.err = 'Give the ring at least one action.'; return render(); } commit(() => { setV(L, k, t, out); st.rings[k] = sl; if (e.icons.some(Boolean)) st.ringIcons[k] = e.icons.slice(); else delete st.ringIcons[k]; }); return toast(k + ' ' + tn.toLowerCase() + ': ring staged'); }
   else if (e.type === 'Key combo' && !v.includes('+')) { e.err = 'A combo needs two or more keys joined with +, e.g. Ctrl+Shift+S.'; return render(); }
-  else out = e.type === 'Macro' ? 'Macro: ' + v : e.type === 'Open app' ? 'Open: ' + v : e.type === 'AutoHotkey' ? 'AHK: ' + v : v;
+  else if (e.type === 'Run script' && runWhy(v)) { e.err = 'Run script: ' + runWhy(v) + '.'; return render(); }
+  else if (e.type === 'AutoHotkey' && ahkWhy(v)) { e.err = 'AutoHotkey: ' + ahkWhy(v) + '.'; return render(); }
+  else out = e.type === 'Macro' ? 'Macro: ' + v : e.type === 'Open app' ? 'Open: ' + v : e.type === 'AutoHotkey' ? 'AHK: ' + v : e.type === 'Run script' ? 'Run: ' + v : v;
   commit(() => setV(L, k, t, out));
   toast(k + ' ' + tn.toLowerCase() + ' staged');
 }
@@ -551,9 +576,10 @@ function renderBoard() {
   $('hot').innerHTML = KM.map(([lab, x, y, bw, bh], i) => {
     const v = m[lab], tg = st.trig[L][lab], isFn = lab === 'Fn';
     const stg = v !== w[lab] || JSON.stringify(tg || null) !== JSON.stringify(wr.trig[L][lab] || null);
-    const cls = 'key' + (v ? ' map t-' + gtype(v) : tg ? ' map t-other' : '') + (stg ? ' stg' : '') + (ui.sel === lab ? ' sel' : '') + (isFn ? ' fnk' : '');
+    const ov = ui.app && ((st.apps[ui.app] || { trig: {} }).trig[L] || {})[lab];
+    const cls = 'key' + (v ? ' map t-' + gtype(v) : tg ? ' map t-other' : '') + (ov ? ' ovr' : '') + (stg ? ' stg' : '') + (ui.sel === lab ? ' sel' : '') + (isFn ? ' fnk' : '');
     const nm = st.names[lab];
-    const al = (nm ? nm + ' (' + lab + ')' : lab) + ', ' + (L === 'fn' ? 'Fn' : 'Normal') + ' layer, ' + (isFn ? 'cannot be remapped' : v ? 'sends ' + v : 'default') + (stg ? ', staged' : '');
+    const al = (nm ? nm + ' (' + lab + ')' : lab) + ', ' + (L === 'fn' ? 'Fn' : 'Normal') + ' layer, ' + (isFn ? 'cannot be remapped' : v ? 'sends ' + v : 'default') + (stg ? ', staged' : '') + (ov ? ', has an override for ' + st.apps[ui.app].name : '');
     const row = ROWY.reduce((b, ry, j) => Math.abs(ry - y) < Math.abs(ROWY[b] - y) ? j : b, 0);
     keyMeta.push({ lab, row, x0: x / IW, x1: (x + bw) / IW, nx: (x + bw / 2) / IW, ny: (y + bh / 2) / IH, idx: i, bx: x, by: y, bw, bh });
     return '<button type="button" class="' + cls + '" data-act="key" data-k="' + esc(lab) + '" data-fid="k' + esc(lab) + '" aria-pressed="' + (ui.sel === lab ? 'true' : 'false') + '" aria-label="' + esc(al) + '" title="' + esc(al) + '" style="left:' + pc(x, IW) + ';top:' + pc(y, IH) + ';width:' + pc(bw, IW) + ';height:' + pc(bh, IH) + '">' + (nm ? '<span class="kname" aria-hidden="true">' + esc(nm) + '</span>' : '') + '</button>';
@@ -635,7 +661,7 @@ function renderMaps() {
   const L = ui.layer, m = st.layers[L], w = wr.layers[L], g = { key: [], ring: [], media: [], macro: [], other: [] };
   Object.keys(m).forEach(k => { if (k !== 'Fn') g[gtype(m[k])].push(k); });
   const any = Object.keys(m).length;
-  $('maps').hidden = !ui.showMap || !any;
+  $('maps').hidden = !ui.showMap || !(any || ui.app);
   $('maps').innerHTML = GT.filter(([t]) => g[t].length).map(([t, n]) => '<section class="mgrp" aria-label="' + n + '"><h4>' + n + '<span class="n">' + g[t].length + '</span></h4><ul class="mlist">' + g[t].map(k => {
     const stg = m[k] !== w[k];
     return '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="key" data-k="' + esc(k) + '" data-fid="c' + esc(k) + '" aria-label="' + esc(k) + ' sends ' + esc(m[k]) + (stg ? ', staged' : '') + '"><kbd' + (/^[`'"^~]$/.test(k) && !st.names[k] ? ' class="hi"' : '') + '>' + esc(st.names[k] || k) + '</kbd><span class="to">' + esc(m[k]) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>';
@@ -644,6 +670,13 @@ function renderMaps() {
       const stg = st.enc[k] !== wr.enc[k];
       return '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="knob" data-k="Knob" data-trig="' + k + '" data-fid="ce' + k + '" aria-label="Knob ' + n + ' does ' + esc(dispV(st.enc[k])) + (stg ? ', staged' : '') + '"><kbd>' + ENC_SHORT[k] + '</kbd><span class="to">' + esc(dispV(st.enc[k])) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>';
     }).join('') + '</ul></section>';
+  if (ui.app && st.apps[ui.app]) {
+    const A = st.apps[ui.app], B = wr.apps[ui.app] || newApp(''), items = [];
+    Object.keys(A.trig[L] || {}).forEach(k => TRIG.forEach(([t, n]) => { const v = A.trig[L][k][t]; if (v !== undefined) items.push(['key', k, t, n, v, v !== ((B.trig[L] || {})[k] || {})[t]]); }));
+    ENC.forEach(([t, n]) => { if (A.enc[t] !== undefined) items.push(['knob', 'Knob', t, n, A.enc[t], A.enc[t] !== B.enc[t]]); });
+    $('maps').insertAdjacentHTML('afterbegin', '<section class="mgrp" aria-label="Overrides for ' + esc(A.name) + '"><h4>' + esc(A.name) + ' overrides<span class="n">' + items.length + '</span></h4>' + (items.length ? '<ul class="mlist">' + items.map(([a, k, t, n, v, stg]) =>
+      '<li><button type="button" class="cp' + (stg ? ' stg' : '') + '" data-act="' + a + '" data-k="' + esc(k) + '" data-trig="' + t + '" data-fid="ca' + esc(k) + t + '" aria-label="' + esc(A.name + ' ' + k + ' ' + n) + ' does ' + esc(dispV(v)) + (stg ? ', staged' : '') + '"><kbd>' + (a === 'knob' ? 'Knob' : esc(st.names[k] || k)) + '</kbd><span class="to"><span class="small muted">' + n + '</span> ' + esc(dispV(v)) + '</span>' + (stg ? '<span class="stt">staged</span>' : '') + '</button></li>').join('') + '</ul>' : '<p class="small muted">None yet. Select a key or the knob and stage an action; it applies only in ' + esc(A.name) + '.</p>') + '</section>');
+  }
   const T = st.trig[L], tk = Object.keys(T);
   const rows = [].concat(...tk.map(k => TRIG.slice(1).filter(([t]) => T[k][t] !== undefined).map(([t, n]) => [k, t, n])));
   if (rows.length) $('maps').insertAdjacentHTML('beforeend', '<section class="mgrp" aria-label="Multi-tap and hold"><h4>Multi-tap &amp; hold<span class="n">' + rows.length + '</span></h4><ul class="mlist">' + rows.map(([k, t, n]) => {
@@ -664,8 +697,20 @@ function renderStrip() {
   const lv = D.settings.keyResponse.levels, k = st.keyResponse;
   $('strip').innerHTML = '<div class="grp"><label class="lbl" for="laysel">Layer</label><select id="laysel" class="laysel" data-layer data-fid="laysel">' + [['normal', 'Normal'], ['fn', 'Fn layer']].map(x => '<option value="' + x[0] + '"' + (ui.layer === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') + '</select></div>'
     + '<div class="grp" role="group" aria-labelledby="krq"><span class="lbl" id="krq">Key response</span><button class="opt" type="button" data-act="kr" data-v="-1" data-fid="sq-m" aria-label="Faster response" ' + (k <= 1 ? 'disabled' : '') + '>−</button>' + N('kr', k, 'm') + '<button class="opt" type="button" data-act="kr" data-v="1" data-fid="sq-p" aria-label="More stable response" ' + (k >= 5 ? 'disabled' : '') + '>+</button><span class="small muted mono">' + lv[k - 1].wired + '</span></div>'
+    + appPicker()
     + '<div class="grp"><button class="opt" type="button" role="switch" aria-checked="' + ui.showMap + '" data-act="showmap" data-fid="smap">Show mappings</button></div>'
     + '<div class="grp" role="group" aria-label="Locks">' + Object.keys(st.locks).map(n => '<button class="opt" type="button" role="switch" aria-checked="' + st.locks[n] + '" data-act="lock" data-v="' + esc(n) + '" data-fid="sl' + esc(n) + '">' + esc(n) + ' lock</button>').join('') + '</div>';
+}
+const APP_SUG = [['SolidWorks', 'SLDWORKS.exe'], ['Chrome', 'chrome.exe'], ['Edge', 'msedge.exe'], ['Firefox', 'firefox.exe'], ['Excel', 'EXCEL.EXE'], ['InDesign', 'InDesign.exe'], ['VS Code', 'Code.exe'], ['Notepad', 'notepad.exe']];
+function appPicker() {
+  const ks = Object.keys(st.apps);
+  let h = '<div class="grp app"><label class="lbl" for="appsel">App</label><select id="appsel" data-appsel data-fid="appsel"><option value="">All apps</option>' + ks.map(x => '<option value="' + esc(x) + '"' + (ui.app === x ? ' selected' : '') + '>' + esc(st.apps[x].name) + ' (' + esc(x) + ')</option>').join('') + '</select>'
+    + '<button class="opt" type="button" data-act="appadd" data-fid="appadd" aria-expanded="' + !!ui.addApp + '">Add app</button>'
+    + (ui.app && st.apps[ui.app] ? '<button class="opt" type="button" data-act="appdel" data-fid="appdel" aria-label="Remove ' + esc(st.apps[ui.app].name) + '">Remove</button>' : '') + '</div>';
+  if (ui.addApp) h += '<div class="grp app" role="group" aria-label="Add app"><input type="text" data-appf="appName" data-fid="appname" aria-label="App name" placeholder="Name, e.g. SolidWorks" maxlength="24" value="' + esc(ui.appName || '') + '">'
+    + '<input type="text" list="appsug" data-appf="appExe" data-fid="appexe" aria-label="Exe name" placeholder="SLDWORKS.exe" maxlength="60" value="' + esc(ui.appExe || '') + '"><datalist id="appsug">' + APP_SUG.map(([n, x]) => '<option value="' + x + '" label="' + n + '">').join('') + '</datalist>'
+    + '<button class="btn pri" type="button" data-act="appok" data-fid="appok">Add</button><button class="btn" type="button" data-act="appno" data-fid="appno">Cancel</button>' + (ui.appErr ? '<span class="err small" role="alert">' + esc(ui.appErr) + '</span>' : '') + '</div>';
+  return h;
 }
 function trayHtml() {
   const d = diffs(), n = d.length;
@@ -714,6 +759,7 @@ function pKeys() {
   if (e.type === 'Key') f = '<input type="text" list="kh" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="e.g. F13 or Right Ctrl"><datalist id="kh">' + KEYHINT.map(x => '<option value="' + x + '">').join('') + '</datalist>';
   else if (e.type === 'Key combo') f = '<input type="text" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="e.g. Ctrl+Shift+S">';
   else if (e.type === 'Open app') f = '<input type="text" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="C:\\Program Files\\App\\app.exe">';
+  else if (e.type === 'Run script') f = '<input type="text" data-ed="val" data-fid="edv" value="' + esc(e.val) + '" placeholder="C:\\Scripts\\backup.ps1"><span class="small muted">Full path to a .ps1, .py, .bat, .cmd, .ahk or .exe file. Runs on this PC through the host layer.</span>';
   else if (e.type === 'AutoHotkey') f = '<textarea class="ahk" rows="4" spellcheck="false" data-ed="val" data-fid="edv" placeholder="Send(&quot;Hello&quot;)">' + esc(e.val) + '</textarea><div class="opts" role="group" aria-label="Snippets" style="margin-top:8px">' + AHK_SNIP.map(([n], i) => '<button type="button" class="opt" data-act="ahksnip" data-v="' + i + '">' + n + '</button>').join('') + '</div><span class="small muted">AutoHotkey v2. Runs on this PC through the host layer, like your Cidoo setup.</span>';
   else if (e.type === 'Media' || e.type === 'Mouse' || e.type === 'Macro' || e.type === 'System') {
     const opts = e.type === 'Media' ? MEDIA : e.type === 'Mouse' ? MOUSE : e.type === 'System' ? SYSTEM : st.macros.map(m => m.name);
@@ -737,13 +783,13 @@ function pKeys() {
   }
   else f = '<p class="muted">' + (e.type === 'Disable' ? 'The key will do nothing.' : 'The key returns to its factory behaviour.') + '</p>';
   const nm = isK ? '' : st.names[k] || '';
-  const host = isK || t !== 'tap' || ['AutoHotkey', 'Action ring', 'Open app', 'System'].includes(e.type);
+  const host = isK || !!ui.app || t !== 'tap' || ['AutoHotkey', 'Run script', 'Action ring', 'Open app', 'System'].includes(e.type);
   const timed = ['double', 'triple', 'hold', 'taphold', 'press2', 'press3', 'pleft', 'pright'].includes(t);
-  const isSet = id => isK ? st.enc[id] !== undefined && st.enc[id] !== base().enc[id] : getV(st, L, k, id) !== undefined;
+  const isSet = id => isK && !ui.app ? st.enc[id] !== undefined && st.enc[id] !== base().enc[id] : getV(st, L, k, id) !== undefined;
   const trigRow = '<div class="opts" role="radiogroup" aria-label="Trigger">' + trigList(k).map(([id, n]) => '<button type="button" class="opt trg" role="radio" aria-checked="' + (id === t) + '" data-act="trig" data-v="' + id + '" data-fid="tg' + id + '" aria-label="' + n + (isSet(id) ? ', set' : '') + '">' + n + (isSet(id) ? '<i class="tdot" aria-hidden="true"></i>' : '') + '</button>').join('') + '</div>'
     + '<p class="small muted" style="margin:6px 0 10px">' + (host ? 'Runs on this PC through the host layer (AutoHotkey). The keyboard itself has no multi-tap, hold or knob settings.' : 'Written to the keyboard.')
     + (timed ? ' <label class="tm">Tap window <input type="number" min="100" max="800" step="10" data-timing="tap" data-fid="tmtap" value="' + st.timing.tap + '"> ms</label><label class="tm">Hold after <input type="number" min="150" max="1500" step="10" data-timing="hold" data-fid="tmhold" value="' + st.timing.hold + '"> ms</label>' : '') + '</p>';
-  const anySet = trigList(k).some(([id]) => isK ? st.enc[id] !== undefined && st.enc[id] !== base().enc[id] : getV(st, L, k, id) !== undefined) || (!isK && !!st.rings[k]);
+  const anySet = trigList(k).some(([id]) => isSet(id)) || (!isK && !ui.app && !!st.rings[k]);
   function editorBody() {
     return '<div class="opts" role="radiogroup" aria-label="Action type">' + D.action_types.map(x => '<button type="button" class="opt" role="radio" aria-checked="' + (x === e.type) + '" data-act="etype" data-v="' + x + '" data-fid="et' + x + '">' + x + '</button>').join('') + '</div>'
       + '<div class="fld"><label for="edv">' + (e.type === 'Disable' || e.type === 'Default' ? 'Value' : e.type) + '</label>' + f.replace('data-fid="edv"', 'id="edv" data-fid="edv"') + '</div>'
@@ -921,7 +967,17 @@ document.addEventListener('click', e => {
   else if (a === 'etype') { ui.ed.type = v; ui.ed.val = ''; ui.ed.err = ''; ui.ed.slots = null; ui.ed.icons = null; ui.iconFor = -1; render(); }
   else if (a === 'apply') applyEd();
   else if (a === 'trig') { edFor(ui.sel, v); render(); }
-  else if (a === 'clearall') { const k = ui.sel, L = ui.layer; commit(() => { trigList(k).forEach(([t]) => setV(L, k, t, undefined)); if (k !== 'Knob') { delete st.rings[k]; delete st.ringIcons[k]; } }); edFor(k, ui.trig || (k === 'Knob' ? 'left' : 'tap')); render(); toast((k === 'Knob' ? 'Knob' : k) + ': all functions cleared'); }
+  else if (a === 'appadd') { ui.addApp = !ui.addApp; ui.appErr = ''; render(); }
+  else if (a === 'appno') { ui.addApp = false; render(); }
+  else if (a === 'appok') {
+    const exe = (ui.appExe || '').trim(), sug = APP_SUG.find(x => x[1].toLowerCase() === exe.toLowerCase());
+    if (!/^[\w .()+-]+\.exe$/i.test(exe)) { ui.appErr = 'Enter the exe file name, like SLDWORKS.exe (no folder).'; return render(); }
+    const have = Object.keys(st.apps).find(x => x.toLowerCase() === exe.toLowerCase()), key = have || exe;
+    if (!have) commit(() => { st.apps[key] = newApp((ui.appName || '').trim() || (sug ? sug[0] : exe.replace(/\.exe$/i, ''))); });
+    ui.addApp = false; ui.appName = ui.appExe = ''; ui.app = key; ui.sel = null; ui.ed = null; render();
+  }
+  else if (a === 'appdel') { const x = ui.app; ui.app = ''; ui.sel = null; ui.ed = null; commit(() => { delete st.apps[x]; }); }
+  else if (a === 'clearall') { const k = ui.sel, L = ui.layer; commit(() => { trigList(k).forEach(([t]) => setV(L, k, t, undefined)); if (k !== 'Knob' && !ui.app) { delete st.rings[k]; delete st.ringIcons[k]; } }); edFor(k, ui.trig || (k === 'Knob' ? 'left' : 'tap')); render(); toast((k === 'Knob' ? 'Knob' : k) + ': all functions cleared'); }
   else if (a === 'ahksnip') { const sn = AHK_SNIP[+v][1]; ui.ed.val = (ui.ed.val ? ui.ed.val.replace(/\s*$/, '\n') : '') + sn; ui.ed.err = ''; render(); }
   else if (a === 'fx') commit(() => st.light.mode = v);
   else if (a === 'prof') commit(() => { st.light.profile = st.light.profile === v ? null : v; const p = D.lighting.profiles.find(x => x.name === v); if (st.light.profile && p.mode) st.light.mode = p.mode; });
@@ -1090,10 +1146,12 @@ window.addEventListener('blur', () => document.querySelectorAll('#hot .key.down'
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.ed) { ui.ed.val = t.value; ui.ed.err = ''; }
+  if (t.dataset.appf) ui[t.dataset.appf] = t.value;
   if (t.dataset.slot !== undefined && ui.ed && ui.ed.slots) { const i = +t.dataset.slot; ui.ed.slots[i] = t.value; ui.ed.err = ''; const ib = document.querySelector('.ricon[data-v="' + i + '"]'); if (!ui.ed.icons[i]) document.querySelectorAll('.ricon[data-v="' + i + '"], .rmb[data-v="' + i + '"]').forEach(n => { n.innerHTML = ringIcon(t.value); n.classList.toggle('empty', !t.value.trim()); }); }
 });
 document.addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.layer !== undefined) { ui.layer = e.target.value; ui.sel = null; ui.ed = null; return render(); }
+  if (e.target.dataset && e.target.dataset.appsel !== undefined) { ui.app = e.target.value; ui.sel = null; ui.ed = null; return render(); }
   const t = e.target;
   if (t.dataset.ed) { ui.ed.val = t.value; }
   if (t.dataset.mevd !== undefined) { const n = Math.round(+t.value), m = macCur(), j = +t.dataset.mevd; if (m && m.events[j] && n >= 10 && n <= 65535 && n !== m.events[j].delay) commit(() => { m.events[j].delay = n; }); else render(); }

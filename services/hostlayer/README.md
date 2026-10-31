@@ -130,7 +130,43 @@ An action is exactly one of:
 | `byApp` | `{"byApp": {"<group>": {...}, "default": {...}}}` | Picks a branch from the foreground exe. A `default` branch is required. Groups come from `appGroups`. |
 | `builtin` | `{"builtin": "altTabTap"}` or `altTabBrowse` | The two switcher behaviours. |
 | `layerToggle` | `{"layerToggle": "num"}` | Flips a sticky layer. |
+| `run` | `{"run": {"path": "C:\\x\\y.ps1", "args": "", "hide": true}}` | Launches a script by extension: `.ps1` via `powershell.exe -NoProfile -ExecutionPolicy Bypass -File`, `.py` via `py.exe` (falls back to `python.exe`), `.bat`/`.cmd` via `cmd /c`, `.ahk` via the running AutoHotkey exe, anything else via `Run`. `path` must be absolute and is always quoted; `args` is appended as given; `hide` hides the window. A missing file is a tray tip at fire time, not a crash. |
+| `ahk` | `{"ahk": "MsgBox 'hi'"}` | Inline AutoHotkey v2 snippet, 8 KB max. Written to `%TEMP%\aula-hostlayer\snippet-<hash>.ahk` (hash of the content, rewritten only if it differs) with `#Requires AutoHotkey v2.0`, then run with the running AutoHotkey exe. |
 | `swallow` | `{"swallow": true}` | Eats the key and emits nothing. |
+
+### Per-app profiles
+
+Top-level `apps` is a convenience over `byApp`. Each key must be an `appGroups`
+group; each profile has optional `bindings` (any key, with the trigger slots
+`tap`/`hold`/`doubleTap`/`tripleTap`/`tapHold`) and a partial `encoder` (any
+encoder slot; devices still come from the top-level `encoder`).
+
+```json
+"apps": {
+  "solidworks": {
+    "bindings": { "F19": { "tap": { "send": "Ctrl+Shift+S" } } },
+    "encoder":  { "left": { "send": "Ctrl+Shift+Z" } }
+  }
+}
+```
+
+At load time every override is folded into the matching global action as a
+`byApp` branch and the global action becomes its `default`, so the runtime path
+is the existing foreground-exe lookup (resolved at fire time). **App override
+beats global.** Details:
+
+- A trigger the profile does not mention keeps its global action. If the global
+  action is already a `byApp`, the profile's group branch replaces (or adds to) it.
+- A trigger with no global action on a key that has a global `tap` (a new
+  `hold`, `doubleTap`, `tripleTap` or `tapHold`) falls through to that global
+  tap outside the app. A new `hold`, `doubleTap` or `tapHold` adds the
+  tap-hold or tap-window latency to that key everywhere. A key not in
+  `bindings` gets `swallow` outside the app, so only F13-F24 may be
+  profile-only; other keys are rejected by validation.
+- Encoder `left`/`right`/`press` with no global action default to their stock
+  volume keys outside the app; other new slots default to `swallow`.
+- Profile actions may not themselves be `byApp`. Space, CapsLock, F16, F17 and
+  `Ctrl+Alt+Shift+V` are refused exactly as in `bindings`.
 
 A binding with a `tap` and no `hold` is **tap-only** and fires the instant the
 key goes down, with zero added latency. A binding with both waits `tapHoldMs`
@@ -350,7 +386,7 @@ cd services\hostlayer
 py -m unittest discover -s tests
 ```
 
-204 tests, no network, no device, fake clock, well under a second.
+239 tests, no network, no device, fake clock, well under a second.
 `test_shipped_focus_app_launch_paths_exist_on_disk` fails on a machine where the
 Claude launcher path recorded in `layers.json` does not exist; it is a check of
 the machine, not of the engine.

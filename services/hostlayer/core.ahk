@@ -332,13 +332,13 @@ HL_ValidateAction(a, where, cfg, errs, allowNested := true) {
         errs.Push(where ": action must be an object")
         return
     }
-    HL_CheckUnknownKeys(a, ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "blind", "note"], where, errs)
+    HL_CheckUnknownKeys(a, ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "run", "ahk", "blind", "note"], where, errs)
     kinds := 0
-    for _, k in ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp"]
+    for _, k in ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "run", "ahk"]
         if (a.Has(k))
             kinds += 1
     if (kinds !== 1) {
-        errs.Push(where ": exactly one of send/swallow/layerToggle/builtin/byApp/focusApp is required, found " kinds)
+        errs.Push(where ": exactly one of send/swallow/layerToggle/builtin/byApp/focusApp/run/ahk is required, found " kinds)
         return
     }
     if (a.Has("blind") && !HL_IsBoolish(a["blind"]))
@@ -389,6 +389,30 @@ HL_ValidateAction(a, where, cfg, errs, allowNested := true) {
                 errs.Push(where ".focusApp.args: must be a string")
         }
     }
+    if (a.Has("run")) {
+        r := a["run"]
+        if (!HL_IsMap(r)) {
+            errs.Push(where ".run: must be an object")
+        } else {
+            HL_CheckUnknownKeys(r, ["path", "args", "hide", "note"], where ".run", errs)
+            if (!r.Has("path") || Type(r["path"]) !== "String" || Trim(r["path"]) == "")
+                errs.Push(where ".run.path: required, must be a non-empty absolute path")
+            else if (!HL_LooksAbsolute(r["path"]))
+                errs.Push(where ".run.path: '" r["path"] "' must be an absolute path")
+            else if (InStr(r["path"], '"'))
+                errs.Push(where ".run.path: must not contain a double quote")
+            if (r.Has("args") && Type(r["args"]) !== "String")
+                errs.Push(where ".run.args: must be a string")
+            if (r.Has("hide") && !HL_IsBoolish(r["hide"]))
+                errs.Push(where ".run.hide: must be true or false")
+        }
+    }
+    if (a.Has("ahk")) {
+        if (Type(a["ahk"]) !== "String" || Trim(a["ahk"]) == "")
+            errs.Push(where ".ahk: must be a non-empty AutoHotkey v2 snippet string")
+        else if (StrPut(a["ahk"], "UTF-8") - 1 > 8192)
+            errs.Push(where ".ahk: snippet is over the 8 KB limit")
+    }
     if (a.Has("byApp")) {
         if (!allowNested) {
             errs.Push(where ".byApp: byApp cannot be nested inside byApp")
@@ -418,7 +442,7 @@ HL_ValidateConfig(cfg) {
         errs.Push("root: config must be a JSON object")
         return errs
     }
-    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "tapWindowMs", "appGroups", "bindings", "layers", "encoder"], "root", errs)
+    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "tapWindowMs", "appGroups", "apps", "bindings", "layers", "encoder"], "root", errs)
 
     if (!cfg.Has("schemaVersion") || cfg["schemaVersion"] !== 1)
         errs.Push("root.schemaVersion: must be 1")
@@ -545,6 +569,68 @@ HL_ValidateConfig(cfg) {
         }
     }
 
+    ; ---- apps (per-app profiles; merged into byApp at compile time) ------
+    if (cfg.Has("apps")) {
+        if (!HL_IsMap(cfg["apps"])) {
+            errs.Push("root.apps: must be an object")
+        } else {
+            for _, g in HL_KeysOf(cfg["apps"]) {
+                P := cfg["apps"][g]
+                where := "apps." g
+                if (!cfg.Has("appGroups") || !HL_IsMap(cfg["appGroups"]) || !cfg["appGroups"].Has(g))
+                    errs.Push(where ": '" g "' is not a declared appGroup")
+                if (!HL_IsMap(P)) {
+                    errs.Push(where ": must be an object")
+                    continue
+                }
+                HL_CheckUnknownKeys(P, ["note", "bindings", "encoder"], where, errs)
+                if (P.Has("bindings")) {
+                    if (!HL_IsMap(P["bindings"])) {
+                        errs.Push(where ".bindings: must be an object")
+                    } else {
+                        for _, k in HL_KeysOf(P["bindings"]) {
+                            kw := where ".bindings." k
+                            Bo := P["bindings"][k]
+                            if (HL_ProtectedKeys().Has(k))
+                                errs.Push(kw ": '" k "' is protected -- " HL_ProtectedKeys()[k])
+                            else if (HL_ReservedKeys().Has(k))
+                                errs.Push(kw ": '" k "' is reserved -- " HL_ReservedKeys()[k])
+                            else if (!HL_KeyHotkey().Has(k))
+                                errs.Push(kw ": '" k "' is not a bindable physical key name")
+                            else if (!RegExMatch(k, "i)^F(1[3-9]|2[0-4])$") && !(cfg.Has("bindings") && HL_IsMap(cfg["bindings"]) && HL_FindKey(cfg["bindings"], k) != ""))
+                                errs.Push(kw ": '" k "' is not bound globally; only F13-F24 may be profile-only")
+                            if (!HL_IsMap(Bo)) {
+                                errs.Push(kw ": must be an object")
+                                continue
+                            }
+                            HL_CheckUnknownKeys(Bo, ["note", "tap", "hold", "doubleTap", "tripleTap", "tapHold"], kw, errs)
+                            if (Bo.Count == 0 || (Bo.Count == 1 && Bo.Has("note")))
+                                errs.Push(kw ": must override at least one of tap/hold/doubleTap/tripleTap/tapHold")
+                            for _, trig in ["tap", "hold", "doubleTap", "tripleTap", "tapHold"]
+                                if (Bo.Has(trig))
+                                    HL_ValidateAction(Bo[trig], kw "." trig, cfg, errs, false)
+                        }
+                    }
+                }
+                if (P.Has("encoder")) {
+                    if (!HL_IsMap(P["encoder"])) {
+                        errs.Push(where ".encoder: must be an object")
+                    } else {
+                        if (!cfg.Has("encoder"))
+                            errs.Push(where ".encoder: needs a top-level encoder block (it supplies the devices)")
+                        encAllowed := ["note"]
+                        for _, t in HL_EncoderTriggers()
+                            encAllowed.Push(t)
+                        HL_CheckUnknownKeys(P["encoder"], encAllowed, where ".encoder", errs)
+                        for _, t in HL_EncoderTriggers()
+                            if (P["encoder"].Has(t))
+                                HL_ValidateAction(P["encoder"][t], where ".encoder." t, cfg, errs, false)
+                    }
+                }
+            }
+        }
+    }
+
     ; ---- encoder ---------------------------------------------------------
     if (cfg.Has("encoder")) {
         E := cfg["encoder"]
@@ -594,6 +680,15 @@ HL_CompileAction(a) {
         out["launch"] := f.Get("launch", "")
         out["windowClass"] := f.Get("windowClass", "")
         out["args"] := f.Get("args", "")
+    } else if (a.Has("run")) {
+        out["kind"] := "run"
+        r := a["run"]
+        out["path"] := Trim(r["path"])
+        out["args"] := r.Get("args", "")
+        out["hide"] := r.Has("hide") ? (r["hide"] ? 1 : 0) : 0
+    } else if (a.Has("ahk")) {
+        out["kind"] := "ahk"
+        out["code"] := a["ahk"]
     } else if (a.Has("byApp")) {
         out["kind"] := "byApp"
         br := Map()
@@ -623,7 +718,122 @@ HL_FillTriggers(entry, tap, hold, dbl, trp, th, forceMulti) {
     entry["maxTaps"] := IsObject(trp) ? 3 : (IsObject(dbl) ? 2 : 1)
 }
 
+; ---- per-app profiles ------------------------------------------------------
+; "apps" is sugar. Each profile override is folded into the matching global
+; action as a byApp branch (global action becomes the default branch), so the
+; runtime keeps its single foreground-exe lookup. App override beats global.
+
+; Existing key in m matching name case-insensitively, else "".
+HL_FindKey(m, name) {
+    for k, _ in m
+        if (StrLower(k) == StrLower(name))
+            return k
+    return ""
+}
+
+; One trigger: base is the global action ("" when absent), ov the app's.
+HL_MergeApp(base, g, ov, dflt) {
+    if (!IsObject(base))
+        base := dflt
+    if (base.Has("byApp")) {
+        nb := Map()
+        for k, v in base["byApp"]
+            nb[k] := v
+        nb[g] := ov
+        return Map("byApp", nb)
+    }
+    return Map("byApp", Map(g, ov, "default", base))
+}
+
+HL_ExpandApps(cfg) {
+    if (!cfg.Has("apps"))
+        return cfg
+    out := Map()
+    for k, v in cfg
+        out[k] := v
+    bind := Map()
+    for k, v in cfg["bindings"]
+        bind[k] := v
+    enc := Map()
+    hasEnc := cfg.Has("encoder")
+    if (hasEnc)
+        for k, v in cfg["encoder"]
+            enc[k] := v
+    swallow := Map("swallow", true)
+    for g, P in cfg["apps"] {
+        if (P.Has("bindings"))
+            for k, ov in P["bindings"] {
+                real := HL_FindKey(bind, k)
+                if (real == "")
+                    real := k
+                nb := Map()
+                if (bind.Has(real))
+                    for t, x in bind[real]
+                        nb[t] := x
+                ; A trigger new to this key falls through to the global tap elsewhere.
+                gk := HL_FindKey(cfg["bindings"], k)
+                dflt := (gk != "" && cfg["bindings"][gk].Has("tap")) ? cfg["bindings"][gk]["tap"] : swallow
+                for _, t in ["tap", "hold", "doubleTap", "tripleTap", "tapHold"]
+                    if (ov.Has(t))
+                        nb[t] := HL_MergeApp(nb.Has(t) ? nb[t] : "", g, ov[t], dflt)
+                if (!nb.Has("tap"))
+                    nb["tap"] := swallow
+                bind[real] := nb
+            }
+        if (hasEnc && P.Has("encoder"))
+            for t, ov in P["encoder"] {
+                if (t == "note")
+                    continue
+                ; An absent left/right/press must keep its stock key outside the app.
+                dflt := HL_EncoderSources().Has(t) ? Map("send", HL_EncoderSources()[t]) : swallow
+                enc[t] := HL_MergeApp(enc.Has(t) ? enc[t] : "", g, ov, dflt)
+            }
+    }
+    out["bindings"] := bind
+    if (hasEnc)
+        out["encoder"] := enc
+    return out
+}
+
+; ---- run / ahk actions -----------------------------------------------------
+
+; Command lines to try, in order, for a compiled "run" action. Pure: the
+; running AutoHotkey exe and %ComSpec% are passed in. Path is always quoted;
+; args are appended as given.
+HL_RunCommands(a, ahkPath, comSpec) {
+    p := a["path"]
+    q := '"' p '"'
+    ar := Trim(a["args"])
+    tail := (ar !== "") ? (" " ar) : ""
+    ext := ""
+    if (RegExMatch(p, "i)\.([^.\\/]+)$", &m))
+        ext := StrLower(m[1])
+    if (ext == "ps1")
+        return ['powershell.exe -NoProfile -ExecutionPolicy Bypass -File ' q tail]
+    if (ext == "py")
+        return ['py.exe ' q tail, 'python.exe ' q tail]
+    if (ext == "bat" || ext == "cmd")
+        return ['"' comSpec '" /c "' q tail '"']
+    if (ext == "ahk")
+        return ['"' ahkPath '" ' q tail]
+    return [q tail]
+}
+
+; 64-bit FNV-1a over UTF-16 code units, as 16 hex digits.
+HL_SnippetHash(s) {
+    h := -3750763034362895579  ; 0xCBF29CE484222325 as signed 64-bit
+    Loop Parse, s {
+        h := (h ^ Ord(A_LoopField)) * 1099511628211
+    }
+    return Format("{:016x}", h)
+}
+
+HL_SnippetSource(code) {
+    return "#Requires AutoHotkey v2.0`n" code "`n"
+}
+
 HL_CompileConfig(cfg) {
+    cfg := HL_ExpandApps(cfg)
     c := Map()
     c["tapHoldMs"] := cfg["tapHoldMs"]
     c["tapWindowMs"] := cfg.Get("tapWindowMs", 250)

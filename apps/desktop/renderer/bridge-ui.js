@@ -38,7 +38,7 @@ function sendFor(v) {
   if (MOUSE_SEND[v]) return { mouse: MOUSE_SEND[v] };
   const mm = /^Macro: (.*)$/.exec(v);
   if (mm) return mm[1] in macIdx ? { macro: macIdx[mm[1]], mode: 'once', count: 1 } : null;
-  if (v === 'Action ring' || /^(AHK|Open): /.test(v) || SYSTEM.includes(v)) return null;
+  if (v === 'Action ring' || /^(AHK|Open|Run): /.test(v) || SYSTEM.includes(v)) return null;
   const plain = hidSendName(v);
   if (plain) return plain;
   return v.includes('+') && comboOk(v) ? { combo: v.split('+').map(t => hidSendName(t.trim()) || t.trim()).join('+') } : null;
@@ -100,6 +100,10 @@ function hostKeyName(t) {
   if (/^F([1-9]|1\d|2[0-4])$/i.test(t) && !/^F1[67]$/i.test(t)) return t.toLowerCase();
   return HOST_KEY[t.toLowerCase()] || null;
 }
+// '' when ok, else why a Run script path or AutoHotkey snippet is refused (same rules as the engine's validator).
+const runWhy = p => !/^([a-z]:[\\/]|\\\\)/i.test(p) ? 'enter a full path starting with a drive letter, like C:\\Scripts\\a.ps1' : p.includes('"') ? 'the path cannot contain a double quote'
+  : !/\.(ps1|py|bat|cmd|ahk|exe)$/i.test(p) ? 'use a .ps1, .py, .bat, .cmd, .ahk or .exe file' : '';
+const ahkWhy = s => !s.trim() ? 'the snippet is empty' : new TextEncoder().encode(s).length > 8192 ? 'the snippet is over 8 KB' : '';
 // UI value -> engine action, or a reason string.
 function hostAction(v) {
   if (v === 'Disabled') return { a: { swallow: true } };
@@ -107,7 +111,10 @@ function hostAction(v) {
   if (HOST_SYSTEM[v]) return { a: { send: HOST_SYSTEM[v] } };
   if (MOUSE_SEND[v]) return { why: 'the host layer cannot click the mouse' };
   if (/^Macro: /.test(v)) return { why: 'macros run on the keyboard, not the host layer' };
-  if (/^AHK: /.test(v)) return { why: 'the host layer has no raw AutoHotkey action' };
+  const ah = /^AHK: ([\s\S]*)$/.exec(v);
+  if (ah) return ahkWhy(ah[1]) ? { why: ahkWhy(ah[1]) } : { a: { ahk: ah[1] } };
+  const ru = /^Run: (.*)$/.exec(v);
+  if (ru) { const p = ru[1].trim(); return runWhy(p) ? { why: runWhy(p) } : { a: { run: { path: p } } }; }
   if (v === 'Action ring') return { why: 'the action ring is not supported by the host layer' };
   if (SYSTEM.includes(v)) return { why: 'the host layer has no equivalent for ' + v };
   const o = /^Open: (.*)$/.exec(v);
@@ -137,6 +144,33 @@ function hostPlan(ops, skipped, onSent, warn) {
     });
     if (Object.keys(b).length > 1) { cfg.bindings[code] = b; claimed[code] = k; }
   }));
+  const appGroups = {}, apps = {}, sentApps = {};   // per-app overrides: one engine group per exe
+  Object.keys(st.apps).forEach(exe => {
+    const A = st.apps[exe], g = 'app_' + exe.toLowerCase().replace(/\.exe$/, '').replace(/[^a-z0-9]+/g, '_'), S = sentApps[exe] = { name: A.name, trig: { normal: {}, fn: {} }, enc: {} }, P = {}, PE = {};
+    ['normal', 'fn'].forEach(L => Object.keys(A.trig[L] || {}).forEach(k => {
+      const code = st.layers[L][k], tr = A.trig[L][k], nm = A.name + ': ' + (L === 'fn' ? 'Fn layer: ' : '') + k;
+      const no = why => Object.keys(tr).forEach(t => skipped.push(nm + ' ' + t + ' (' + why + ')'));
+      if (!HOST_FCODE.test(code || '')) return no(k === 'Fn' || !posName(k) ? 'this key cannot be remapped' : 'map this key to an F13-F24 code first');
+      if (claimed[code] && claimed[code] !== k) return no(code + ' is already used by ' + claimed[code]);
+      Object.keys(tr).forEach(t => {
+        const r = hostAction(tr[t]);
+        if (!r.a) return skipped.push(nm + ' ' + t + ' sends ' + tr[t] + ' (' + r.why + ')');
+        claimed[code] = k;
+        (P[code] = P[code] || {})[t === 'tap' ? 'tap' : HOST_TRIG[t]] = r.a;
+        ((S.trig[L][k] = S.trig[L][k] || {}))[t] = tr[t];
+      });
+    }));
+    Object.keys(A.enc).forEach(t => {
+      const r = hostAction(A.enc[t]);
+      if (r.a) { PE[HOST_ENC[t]] = r.a; S.enc[t] = A.enc[t]; } else skipped.push(A.name + ': knob ' + t + ' sends ' + A.enc[t] + ' (' + r.why + ')');
+    });
+    if (Object.keys(P).length || Object.keys(PE).length) {
+      appGroups[g] = [exe]; apps[g] = {};
+      if (Object.keys(P).length) apps[g].bindings = P;
+      if (Object.keys(PE).length) apps[g].encoder = PE;
+    }
+  });
+  if (Object.keys(apps).length) { cfg.appGroups = appGroups; cfg.apps = apps; }
   const E = { devices: HOST_DEVICES }, badEnc = new Set();
   Object.keys(HOST_ENC).forEach(t => {
     if (st.enc[t] === undefined) return;
@@ -157,6 +191,7 @@ function hostPlan(ops, skipped, onSent, warn) {
     });
     Object.keys(HOST_ENC).forEach(t => { const v = badEnc.has(t) ? wr.enc[t] : st.enc[t]; if (v === undefined) delete wr.enc[t]; else wr.enc[t] = v; });
     wr.timing = clone(st.timing);
+    wr.apps = clone(sentApps);
   });
 }
 

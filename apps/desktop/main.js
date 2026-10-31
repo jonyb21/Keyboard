@@ -74,6 +74,8 @@ function hostShape(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c) || c.schemaVersion !== 1 || !Number.isInteger(c.tapHoldMs)
     || !c.bindings || typeof c.bindings !== 'object' || !Object.keys(c.bindings).length) return 'config must have schemaVersion 1, tapHoldMs and at least one binding';
   if (Object.keys(c.bindings).some(k => /^f1[67]$/i.test(k))) return 'F16 and F17 belong to the Cidoo knob and cannot be bound';
+  if (Object.values(c.apps || {}).some(a => Object.keys((a && a.bindings) || {}).some(k => /^f1[67]$/i.test(k)))) return 'F16 and F17 belong to the Cidoo knob and cannot be bound';
+  if (Object.keys(c.apps || {}).some(g => !Array.isArray((c.appGroups || {})[g]))) return 'every app profile needs a matching appGroups entry';
   if (JSON.stringify(c).length > HOST_MAX) return 'config is too large';
   return null;
 }

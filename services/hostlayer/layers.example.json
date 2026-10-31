@@ -81,6 +81,32 @@
       "note": "swallow: eat the key and emit nothing. Use it so a raw F-key can never leak to an app.",
       "tap": { "send": "Ctrl+V" },
       "hold": { "swallow": true }
+    },
+
+    "F23": {
+      "note": "run: launch a script by extension (.ps1 via powershell -File, .py via py/python, .bat/.cmd via cmd /c, .ahk via the running AutoHotkey, anything else via Run). path must be absolute; args are appended as given; hide hides the window. A missing file shows a tray tip. ahk: a short inline AutoHotkey v2 snippet (max 8 KB), written to %TEMP%\\aula-hostlayer and run.",
+      "tap": { "run": { "path": "C:\\Scripts\\backup.ps1", "args": "-Quick", "hide": true } },
+      "hold": { "ahk": "MsgBox 'hello from a snippet'" }
+    }
+  },
+
+  "apps": {
+    "solidworks": {
+      "note": "Per-app profile: the group must be in appGroups. Each override becomes a byApp branch of the global action (the global action is the default), so app override beats global. Keys not in 'bindings' above are added; unspecified triggers keep the global action.",
+      "bindings": {
+        "F19": { "tap": { "send": "Ctrl+Shift+S" } },
+        "F22": { "hold": { "send": "Ctrl+Shift+V" } }
+      },
+      "encoder": {
+        "note": "Partial encoder block: any trigger the encoder accepts. Devices come from the top-level encoder.",
+        "left": { "send": "Ctrl+Shift+Z" },
+        "right": { "send": "Ctrl+Y" }
+      }
+    },
+    "browsers": {
+      "bindings": {
+        "F19": { "tap": { "send": "Ctrl+R" } }
+      }
     }
   },
 

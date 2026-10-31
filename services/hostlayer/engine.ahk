@@ -546,8 +546,52 @@ DoAction(a) {
         FocusApp(a)
         return
     }
+    if (k == "run") {
+        RunScript(a)
+        return
+    }
+    if (k == "ahk") {
+        RunSnippet(a)
+        return
+    }
     if (k == "send")
         Send((a["blind"] ? "{Blind}" : "") . a["send"])
+}
+
+; Launch a script by extension (command lines come from HL_RunCommands). A
+; missing file is a tray tip, never a crash.
+RunScript(a) {
+    if (!FileExist(a["path"])) {
+        TrayTip("Script not found: " a["path"], "AULA host layer", 0x3)
+        return
+    }
+    err := ""
+    for _, cmd in HL_RunCommands(a, A_AhkPath, A_ComSpec) {
+        try {
+            Run(cmd, , a["hide"] ? "Hide" : "")
+            return
+        } catch as e
+            err := e.Message
+    }
+    TrayTip("Could not run " a["path"] ": " err, "AULA host layer", 0x3)
+}
+
+; Inline snippet: written once per content hash to %TEMP%\aula-hostlayer and run
+; with the running AutoHotkey exe.
+RunSnippet(a) {
+    dir := A_Temp "\aula-hostlayer"
+    file := dir "\snippet-" HL_SnippetHash(a["code"]) ".ahk"
+    src := HL_SnippetSource(a["code"])
+    try {
+        DirCreate(dir)
+        if (!FileExist(file) || FileRead(file, "UTF-8") !== src) {
+            try FileDelete(file)
+            FileAppend(src, file, "UTF-8")
+        }
+        Run('"' A_AhkPath '" "' file '"')
+    } catch as e {
+        TrayTip("Could not run snippet: " e.Message, "AULA host layer", 0x3)
+    }
 }
 
 ActiveExe() {

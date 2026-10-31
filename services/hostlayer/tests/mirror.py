@@ -58,6 +58,7 @@ ENCODER_TRIGGERS = [
     "left", "right", "press", "doublePress", "triplePress", "hold",
     "pressLeft", "pressRight",
 ]
+APP_BINDING_TRIGGERS = ["tap", "hold", "doubleTap", "tripleTap", "tapHold"]
 ENCODER_PRESS_MODE = ["doublePress", "triplePress", "hold", "pressLeft", "pressRight"]
 
 
@@ -266,7 +267,7 @@ def _check_unknown_keys(m, allowed, where, errs):
             errs.append("%s: unknown key '%s'" % (where, k))
 
 
-ACTION_KINDS = ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp"]
+ACTION_KINDS = ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "run", "ahk"]
 ACTION_ALLOWED = ACTION_KINDS + ["blind", "note"]
 
 
@@ -279,7 +280,7 @@ def validate_action(a, where, cfg, errs, allow_nested=True):
     kinds = sum(1 for k in ACTION_KINDS if k in a)
     if kinds != 1:
         errs.append(
-            "%s: exactly one of send/swallow/layerToggle/builtin/byApp/focusApp "
+            "%s: exactly one of send/swallow/layerToggle/builtin/byApp/focusApp/run/ahk "
             "is required, found %d" % (where, kinds)
         )
         return
@@ -346,6 +347,32 @@ def validate_action(a, where, cfg, errs, allow_nested=True):
                 errs.append("%s.focusApp.windowClass: must be a string" % where)
             if "args" in f and not isinstance(f["args"], str):
                 errs.append("%s.focusApp.args: must be a string" % where)
+    if "run" in a:
+        r = a["run"]
+        if not isinstance(r, dict):
+            errs.append("%s.run: must be an object" % where)
+        else:
+            _check_unknown_keys(r, ["path", "args", "hide", "note"], where + ".run", errs)
+            rp = r.get("path")
+            if not isinstance(rp, str) or rp.strip() == "":
+                errs.append(
+                    "%s.run.path: required, must be a non-empty absolute path" % where
+                )
+            elif not _looks_absolute(rp):
+                errs.append("%s.run.path: '%s' must be an absolute path" % (where, rp))
+            elif '"' in rp:
+                errs.append("%s.run.path: must not contain a double quote" % where)
+            if "args" in r and not isinstance(r["args"], str):
+                errs.append("%s.run.args: must be a string" % where)
+            if "hide" in r and not _is_boolish(r["hide"]):
+                errs.append("%s.run.hide: must be true or false" % where)
+    if "ahk" in a:
+        if not isinstance(a["ahk"], str) or a["ahk"].strip() == "":
+            errs.append(
+                "%s.ahk: must be a non-empty AutoHotkey v2 snippet string" % where
+            )
+        elif len(a["ahk"].encode("utf-8")) > 8192:
+            errs.append("%s.ahk: snippet is over the 8 KB limit" % where)
     if "byApp" in a:
         if not allow_nested:
             errs.append("%s.byApp: byApp cannot be nested inside byApp" % where)
@@ -372,6 +399,7 @@ ROOT_ALLOWED = [
     "tapHoldMs",
     "tapWindowMs",
     "appGroups",
+    "apps",
     "bindings",
     "layers",
     "encoder",
@@ -511,6 +539,69 @@ def validate_config(cfg):
                 if trig in B:
                     validate_action(B[trig], where + "." + trig, cfg, errs)
 
+    # ---- apps (per-app profiles; merged into byApp at compile time) ------
+    if "apps" in cfg:
+        if not isinstance(cfg["apps"], dict):
+            errs.append("root.apps: must be an object")
+        else:
+            for g in sorted(cfg["apps"].keys()):
+                P = cfg["apps"][g]
+                where = "apps." + g
+                groups = cfg.get("appGroups")
+                if not isinstance(groups, dict) or g not in groups:
+                    errs.append("%s: '%s' is not a declared appGroup" % (where, g))
+                if not isinstance(P, dict):
+                    errs.append("%s: must be an object" % where)
+                    continue
+                _check_unknown_keys(P, ["note", "bindings", "encoder"], where, errs)
+                if "bindings" in P:
+                    if not isinstance(P["bindings"], dict):
+                        errs.append("%s.bindings: must be an object" % where)
+                    else:
+                        for k in sorted(P["bindings"].keys()):
+                            kw = "%s.bindings.%s" % (where, k)
+                            Bo = P["bindings"][k]
+                            kl = k.lower()
+                            if kl in PROTECTED_KEYS:
+                                errs.append("%s: '%s' is protected -- %s" % (kw, k, PROTECTED_KEYS[kl]))
+                            elif kl in RESERVED_KEYS:
+                                errs.append("%s: '%s' is reserved -- %s" % (kw, k, RESERVED_KEYS[kl]))
+                            elif kl not in KEY_HOTKEY:
+                                errs.append("%s: '%s' is not a bindable physical key name" % (kw, k))
+                            elif not re.match(r"^f(1[3-9]|2[0-4])$", kl) and _find_key(cfg.get("bindings") or {}, k) == "":
+                                errs.append("%s: '%s' is not bound globally; only F13-F24 may be profile-only" % (kw, k))
+                            if not isinstance(Bo, dict):
+                                errs.append("%s: must be an object" % kw)
+                                continue
+                            _check_unknown_keys(
+                                Bo, ["note"] + APP_BINDING_TRIGGERS, kw, errs
+                            )
+                            if not any(t in Bo for t in APP_BINDING_TRIGGERS):
+                                errs.append(
+                                    "%s: must override at least one of "
+                                    "tap/hold/doubleTap/tripleTap/tapHold" % kw
+                                )
+                            for trig in APP_BINDING_TRIGGERS:
+                                if trig in Bo:
+                                    validate_action(Bo[trig], "%s.%s" % (kw, trig), cfg, errs, False)
+                if "encoder" in P:
+                    if not isinstance(P["encoder"], dict):
+                        errs.append("%s.encoder: must be an object" % where)
+                    else:
+                        if "encoder" not in cfg:
+                            errs.append(
+                                "%s.encoder: needs a top-level encoder block (it supplies the devices)"
+                                % where
+                            )
+                        _check_unknown_keys(
+                            P["encoder"], ["note"] + ENCODER_TRIGGERS, where + ".encoder", errs
+                        )
+                        for t in ENCODER_TRIGGERS:
+                            if t in P["encoder"]:
+                                validate_action(
+                                    P["encoder"][t], "%s.encoder.%s" % (where, t), cfg, errs, False
+                                )
+
     # ---- encoder ----
     if "encoder" in cfg:
         E = cfg["encoder"]
@@ -559,6 +650,15 @@ def compile_action(a):
         out["launch"] = f.get("launch", "")
         out["windowClass"] = f.get("windowClass", "")
         out["args"] = f.get("args", "")
+    elif "run" in a:
+        r = a["run"]
+        out["kind"] = "run"
+        out["path"] = r["path"].strip()
+        out["args"] = r.get("args", "")
+        out["hide"] = 1 if r.get("hide") else 0
+    elif "ahk" in a:
+        out["kind"] = "ahk"
+        out["code"] = a["ahk"]
     elif "byApp" in a:
         out["kind"] = "byApp"
         out["branches"] = {g: compile_action(sub) for g, sub in a["byApp"].items()}
@@ -582,8 +682,94 @@ def fill_triggers(entry, tap, hold, dbl, trp, th, force_multi):
     entry["maxTaps"] = 3 if trp != "" else (2 if dbl != "" else 1)
 
 
+def _find_key(m, name):
+    """core.ahk: HL_FindKey"""
+    for k in m:
+        if k.lower() == name.lower():
+            return k
+    return ""
+
+
+def _merge_app(base, g, ov, dflt):
+    """core.ahk: HL_MergeApp"""
+    if base == "":
+        base = dflt
+    if "byApp" in base:
+        nb = dict(base["byApp"])
+        nb[g] = ov
+        return {"byApp": nb}
+    return {"byApp": {g: ov, "default": base}}
+
+
+def expand_apps(cfg):
+    """core.ahk: HL_ExpandApps. Folds "apps" profiles into byApp actions."""
+    if "apps" not in cfg:
+        return cfg
+    out = dict(cfg)
+    bind = dict(cfg["bindings"])
+    has_enc = "encoder" in cfg
+    enc = dict(cfg["encoder"]) if has_enc else {}
+    swallow = {"swallow": True}
+    for g, P in cfg["apps"].items():
+        for k, ov in P.get("bindings", {}).items():
+            real = _find_key(bind, k) or k
+            nb = dict(bind.get(real, {}))
+            gk = _find_key(cfg["bindings"], k)
+            dflt = cfg["bindings"][gk].get("tap", swallow) if gk else swallow
+            for t in APP_BINDING_TRIGGERS:
+                if t in ov:
+                    nb[t] = _merge_app(nb.get(t, ""), g, ov[t], dflt)
+            if "tap" not in nb:
+                nb["tap"] = swallow
+            bind[real] = nb
+        if has_enc:
+            for t, ov in P.get("encoder", {}).items():
+                if t == "note":
+                    continue
+                dflt = {"send": ENCODER_SOURCES[t]} if t in ENCODER_SOURCES else swallow
+                enc[t] = _merge_app(enc.get(t, ""), g, ov, dflt)
+    out["bindings"] = bind
+    if has_enc:
+        out["encoder"] = enc
+    return out
+
+
+def run_commands(a, ahk_path, com_spec):
+    """core.ahk: HL_RunCommands"""
+    p = a["path"]
+    q = '"' + p + '"'
+    ar = a["args"].strip()
+    tail = (" " + ar) if ar else ""
+    m = re.search(r"\.([^.\\/]+)$", p)
+    ext = m.group(1).lower() if m else ""
+    if ext == "ps1":
+        return ["powershell.exe -NoProfile -ExecutionPolicy Bypass -File " + q + tail]
+    if ext == "py":
+        return ["py.exe " + q + tail, "python.exe " + q + tail]
+    if ext in ("bat", "cmd"):
+        return ['"' + com_spec + '" /c "' + q + tail + '"']
+    if ext == "ahk":
+        return ['"' + ahk_path + '" ' + q + tail]
+    return [q + tail]
+
+
+def snippet_hash(s):
+    """core.ahk: HL_SnippetHash (64-bit FNV-1a over UTF-16 code units)"""
+    h = 0xCBF29CE484222325
+    data = s.encode("utf-16-le")
+    for i in range(0, len(data), 2):
+        h = ((h ^ (data[i] | (data[i + 1] << 8))) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    return "%016x" % h
+
+
+def snippet_source(code):
+    """core.ahk: HL_SnippetSource"""
+    return "#Requires AutoHotkey v2.0\n" + code + "\n"
+
+
 def compile_config(cfg):
     """core.ahk: HL_CompileConfig"""
+    cfg = expand_apps(cfg)
     c = {"tapHoldMs": cfg["tapHoldMs"], "tapWindowMs": cfg.get("tapWindowMs", 250)}
 
     exe_index = {}
@@ -1083,6 +1269,10 @@ class FakeEngine:
             self._builtin(a["builtin"], "tap")
         elif kind == "focusApp":
             self.emitted.append("focus:" + a["exe"])
+        elif kind == "run":
+            self.emitted.append("run:" + a["path"])
+        elif kind == "ahk":
+            self.emitted.append("ahk:" + snippet_hash(a["code"]))
         elif kind == "send":
             self.emitted.append(
                 "send:" + ("{Blind}" if a["blind"] else "") + a["send"]
