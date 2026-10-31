@@ -488,5 +488,68 @@ class TestConfigDeepCopyIsolation(unittest.TestCase):
         self.assertEqual([], mirror.validate_config(copy.deepcopy(cfg)))
 
 
+
+def enc_cfg(**dirs):
+    cfg = base_cfg()
+    cfg["encoder"] = dict({"devices": ["VID_0C45&PID_800A", "VID_05AC&PID_024F"]}, **dirs)
+    return cfg
+
+
+class TestEncoder(unittest.TestCase):
+    def test_shipped_encoder_is_stock_so_nothing_is_hooked(self):
+        c = mirror.load_config_file(mirror.LAYERS_JSON)
+        self.assertEqual({}, c["encoder"]["dirs"])
+        self.assertIn("VID_0C45&PID_800A", c["encoder"]["devices"])
+
+    def test_absent_encoder_hooks_nothing(self):
+        c = mirror.load_config_obj(base_cfg())
+        self.assertEqual({}, c["encoder"]["dirs"])
+
+    def test_stock_mapping_hooks_nothing(self):
+        c = mirror.load_config_obj(enc_cfg(
+            left={"send": "Volume_Down"}, right={"send": "volume_up"}, press={"send": "Volume_Mute"}))
+        self.assertEqual({}, c["encoder"]["dirs"])
+
+    def test_remapped_direction_is_hooked_on_its_source_key(self):
+        c = mirror.load_config_obj(enc_cfg(press={"send": "Media_Play_Pause"}, right={"send": "Ctrl+Y"}))
+        d = c["encoder"]["dirs"]
+        self.assertEqual({"press", "right"}, set(d))
+        self.assertEqual("Volume_Mute", d["press"]["hk"])
+        self.assertEqual("{Volume_Mute}", d["press"]["src"])
+        self.assertEqual("{Media_Play_Pause}", d["press"]["action"]["send"])
+        self.assertEqual("Volume_Up", d["right"]["hk"])
+
+    def test_example_remaps_only_press(self):
+        c = mirror.load_config_file(mirror.LAYERS_EXAMPLE_JSON)
+        self.assertEqual({"press"}, set(c["encoder"]["dirs"]))
+
+    def test_modified_source_counts_as_a_remap(self):
+        c = mirror.load_config_obj(enc_cfg(right={"send": "Shift+Volume_Up"}))
+        self.assertEqual({"right"}, set(c["encoder"]["dirs"]))
+
+    def test_byapp_and_layer_actions_allowed(self):
+        cfg = enc_cfg(left={"byApp": {"solidworks": {"send": "Ctrl+Z"}, "default": {"send": "Volume_Down"}}},
+                      press={"layerToggle": "num"})
+        self.assertEqual([], mirror.validate_config(cfg))
+
+    def test_missing_devices_rejected(self):
+        cfg = enc_cfg()
+        del cfg["encoder"]["devices"]
+        self.assertTrue(any("encoder.devices" in e for e in mirror.validate_config(cfg)))
+
+    def test_bad_device_id_rejected(self):
+        cfg = enc_cfg()
+        cfg["encoder"]["devices"] = ["0C45:800A"]
+        self.assertTrue(any("encoder.devices" in e for e in mirror.validate_config(cfg)))
+
+    def test_unknown_encoder_key_rejected(self):
+        cfg = enc_cfg(spin={"send": "A"})
+        self.assertTrue(any("unknown key 'spin'" in e for e in mirror.validate_config(cfg)))
+
+    def test_bad_encoder_action_rejected(self):
+        cfg = enc_cfg(left={"send": "Ctrl+Alt+Shift+V"})
+        self.assertTrue(any(e.startswith("encoder.left.send") for e in mirror.validate_config(cfg)))
+
+
 if __name__ == "__main__":
     unittest.main()

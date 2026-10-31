@@ -84,7 +84,7 @@ Write-Host "  ahk     $AutoHotkey"
 
 # ---------------------------------------------------------------- 1. syntax
 Write-Head "AutoHotkey syntax gate"
-foreach ($f in @("core.ahk", "engine.ahk", "lib\jsonparse.ahk", "tests\hotkeynames.ahk")) {
+foreach ($f in @("core.ahk", "engine.ahk", "encoder-probe.ahk", "lib\jsonparse.ahk", "tests\hotkeynames.ahk")) {
     $full = Join-Path $service $f
     Invoke-Step -Name $f -Exe $AutoHotkey -Arguments @("/validate", "/ErrorStdOut", "`"$full`"")
 }
