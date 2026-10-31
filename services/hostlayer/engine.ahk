@@ -33,6 +33,12 @@ global gHkToKey := Map()          ; normalized hotkey name -> canonical key
 global gTimerFns := Map()         ; key -> BoundFunc, stable across arm/cancel
 global gAltHeld := false          ; true while altTabBrowse owns the Alt key
 global gMutex := 0
+global gEncDevices := []          ; VID/PID substrings that identify the AULA
+global gEncDevCache := Map()      ; raw input device handle -> 1 if it is the AULA
+global gEncLastAula := 0          ; A_TickCount of the last AULA volume-key report
+global gRawOn := false            ; raw input registered for the encoder
+global ENC_WAIT_MS := 30          ; how long a knob key waits for its raw input report
+global ENC_MATCH_MS := 60         ; max gap between the key and the AULA report
 
 ; ===========================================================================
 ; Entry point
@@ -109,6 +115,7 @@ ValidateMain(path) {
     Say("  bindings       " c["bindings"].Count " (" tapOnly " tap-only)")
     Say("  layers         " c["layers"].Count " (" layerKeyCount " mapped keys)")
     Say("  appGroups      " c["exeIndex"].Count " exe names indexed")
+    Say("  encoder        " c["encoder"]["dirs"].Count " remapped (stock directions register nothing)")
     return 0
 }
 
@@ -200,6 +207,109 @@ RegisterAll(c) {
         gRegistered.Push(Map("hk", hk, "ctx", LayerCtx))
     }
     HotIf()
+    RegisterEncoder(c)
+}
+
+; ===========================================================================
+; Encoder knob
+; ===========================================================================
+; The knob emits the same volume keys as the laptop keyboard, and a hotkey
+; cannot tell which device sent a key. Raw input can tell, but cannot block.
+; So a remapped direction's hotkey blocks the key, waits ENC_WAIT_MS for the
+; raw input report, then runs the mapped action if the AULA sent it and
+; re-sends the original key if any other device did.
+; shortcut: matched by time (ENC_MATCH_MS); two boards sending the same volume
+; key within that window can be misattributed. Exact per-device blocking needs
+; a filter driver (Interception) - only if this ever bites.
+
+RegisterEncoder(c) {
+    global gRegistered, gEncDevices, gEncDevCache
+    e := c["encoder"]
+    if (e["dirs"].Count == 0)
+        return
+    gEncDevices := e["devices"]
+    gEncDevCache := Map()
+    for dir, d in e["dirs"] {
+        hk := "$*" d["hk"]
+        Hotkey(hk, MakeEncHandler(d), "On")
+        gRegistered.Push(Map("hk", hk, "ctx", ""))
+    }
+    ; Without raw input nothing ever matches the AULA, so remapped directions
+    ; just pass their key through. That is the safe failure; keep the engine up.
+    try {
+        RawInputRegister(true)
+    } catch as e {
+        TrayTip("Encoder remap off: " e.Message, "AULA host layer", 0x2)
+    }
+}
+
+MakeEncHandler(d) {
+    return (*) => SetTimer(EncDecide.Bind(d, A_TickCount), -ENC_WAIT_MS)
+}
+
+EncDecide(d, tick) {
+    global gEncLastAula
+    if (Abs(gEncLastAula - tick) <= ENC_MATCH_MS)
+        DoAction(d["action"])
+    else
+        Send(d["src"])
+}
+
+; Keyboard (1/6) and consumer control (0x0C/1) reports, delivered even while
+; another window has focus. Removing them on reload keeps registration exact.
+RawInputRegister(on) {
+    global gRawOn
+    if (on == gRawOn)
+        return
+    sz := 8 + A_PtrSize                    ; RAWINPUTDEVICE
+    buf := Buffer(sz * 2, 0)
+    for i, pair in [[0x01, 0x06], [0x0C, 0x01]] {
+        o := (i - 1) * sz
+        NumPut("UShort", pair[1], "UShort", pair[2], "UInt", on ? 0x100 : 0x1, buf, o)   ; RIDEV_INPUTSINK / RIDEV_REMOVE
+        NumPut("Ptr", on ? A_ScriptHwnd : 0, buf, o + 8)
+    }
+    if (!DllCall("RegisterRawInputDevices", "Ptr", buf, "UInt", 2, "UInt", sz))
+        throw Error("RegisterRawInputDevices failed, error " A_LastError)
+    OnMessage(0x00FF, OnRawInput, on ? 1 : 0)   ; WM_INPUT
+    gRawOn := on
+}
+
+OnRawInput(wParam, lParam, *) {
+    global gEncLastAula
+    hdr := 8 + 2 * A_PtrSize               ; RAWINPUTHEADER
+    size := 0
+    DllCall("GetRawInputData", "Ptr", lParam, "UInt", 0x10000003, "Ptr", 0, "UInt*", &size, "UInt", hdr, "Int")
+    if (size < hdr)
+        return
+    buf := Buffer(size)
+    if (DllCall("GetRawInputData", "Ptr", lParam, "UInt", 0x10000003, "Ptr", buf, "UInt*", &size, "UInt", hdr, "Int") < hdr)
+        return
+    if (NumGet(buf, 0, "UInt") == 1) {     ; RIM_TYPEKEYBOARD: only volume key-downs count, not typing
+        vk := NumGet(buf, hdr + 6, "UShort")
+        if (vk < 0xAD || vk > 0xAF || (NumGet(buf, hdr + 2, "UShort") & 1))
+            return
+    }
+    if (IsAulaDevice(NumGet(buf, 8, "Ptr")))
+        gEncLastAula := A_TickCount
+}
+
+IsAulaDevice(h) {
+    global gEncDevCache, gEncDevices
+    if (gEncDevCache.Has(h))
+        return gEncDevCache[h]
+    n := 0, name := ""
+    DllCall("GetRawInputDeviceInfoW", "Ptr", h, "UInt", 0x20000007, "Ptr", 0, "UInt*", &n, "Int")   ; RIDI_DEVICENAME
+    if (n > 0) {
+        b := Buffer(n * 2, 0)
+        if (DllCall("GetRawInputDeviceInfoW", "Ptr", h, "UInt", 0x20000007, "Ptr", b, "UInt*", &n, "Int") > 0)
+            name := StrGet(b, "UTF-16")
+    }
+    hit := 0
+    for _, id in gEncDevices
+        if (InStr(name, id))
+            hit := 1
+    gEncDevCache[h] := hit
+    return hit
 }
 
 RegisterControlHotkeys() {
@@ -227,6 +337,7 @@ UnregisterAll() {
     }
     HotIf()
     gRegistered := []
+    RawInputRegister(false)
 }
 
 NormalizeHk(name) {

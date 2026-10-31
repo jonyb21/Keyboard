@@ -18,7 +18,8 @@ key, and a **sticky extra layer**.
 ## What it touches
 
 Nothing except F13-F22 and, while the num layer is on, twelve keys on the right
-hand. That is the whole surface.
+hand. That is the whole surface. The knob adds its own volume keys, but only when you remap a
+direction (see "The encoder knob").
 
 **Space and CapsLock are protected.** They are not bound, not registered, and
 the config validator refuses to name them. An earlier design put a nav layer on
@@ -147,6 +148,50 @@ config is invalid, the old one keeps running and a tray tip says what was wrong,
 so a typo can never leave you with a dead keyboard.
 
 The tray menu has **Pause hotkeys**, **Reload config**, and **Exit**.
+
+---
+
+## The encoder knob
+
+The knob has no setting in the board's own protocol, so it is remapped here.
+The `encoder` block in `layers.json` maps `left`, `right` and `press` to any
+action kind (`send`, `byApp`, `focusApp`, `layerToggle`, `builtin`, `swallow`):
+
+```json
+"encoder": {
+  "devices": ["VID_0C45&PID_800A", "VID_05AC&PID_024F"],
+  "left":  { "send": "Volume_Down" },
+  "right": { "send": "Volume_Up" },
+  "press": { "send": "Media_Play_Pause" }
+}
+```
+
+The knob sends ordinary volume keys, the same ones the laptop keyboard sends,
+so a plain hotkey would hijack every keyboard. Instead:
+
+- A direction left at its stock key registers nothing. The shipped config is
+  stock, so out of the box the engine hooks no volume key at all.
+- A remapped direction blocks its key for about 30 ms while raw input reports
+  which device sent it. If the device ID matches `devices` (wired or the 2.4G
+  dongle), the mapped action runs. Otherwise the original key is sent on
+  unchanged, so other keyboards keep working.
+- Limit: matching is by time. Two keyboards pressing the same volume key within
+  60 ms of each other can be confused. Exact per-device blocking would need a
+  filter driver, which this deliberately does not install.
+
+The stock codes (left `Volume_Down`, right `Volume_Up`, press `Volume_Mute`) are
+assumed, not yet measured on this board. To check them, run the read-only probe
+(no hotkeys, no hook, safe beside other keyboard tools) from the PC's own
+desktop session (not over SSH), turn and press the knob without typing, and
+read `encoder-probe.log`. It listens on the keyboard and consumer collections
+only, so a knob that reported as a mouse wheel would not show up:
+
+```powershell
+& "C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe" services\hostlayer\encoder-probe.ahk
+```
+
+If the codes differ, change `HL_EncoderSources()` in `core.ahk` and
+`ENCODER_SOURCES` in `tests/mirror.py`.
 
 ---
 
