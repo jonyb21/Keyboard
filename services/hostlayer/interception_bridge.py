@@ -21,6 +21,13 @@ NOTICE = 0x84A1  # WM_APP + 0x4A1: engine.ahk counts the next knob key as the AU
 KEY_UP, KEY_E0 = 0x01, 0x02
 KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE = 0x1, 0x2, 0x8
 DLL = os.environ.get("INTERCEPTION_DLL", os.path.expanduser(r"~\interception\Interception\library\x64\interception.dll"))
+LOG = os.environ.get("AULA_BRIDGE_LOG")  # set to a file path to log every stroke (debugging)
+
+
+def log(msg):
+    if LOG:
+        with open(LOG, "a") as f:
+            f.write(msg + "\n")
 
 
 def is_aula(hwid):
@@ -97,6 +104,7 @@ def main():
         if dev not in aula:
             n = ic.interception_get_hardware_id(ctx, dev, hwid, ctypes.sizeof(hwid))
             aula[dev] = n > 0 and is_aula(hwid.value)
+            log(f"device {dev} {hwid.value if n > 0 else '?'} aula={aula[dev]}")
         if not aula[dev]:
             ic.interception_send(ctx, dev, ctypes.byref(s), 1)
             continue
@@ -105,7 +113,9 @@ def main():
             if engine:
                 user32.PostMessageW(engine, NOTICE, 0, 0)
         inp.ki.wVk, inp.ki.wScan, inp.ki.dwFlags = input_fields(s.code, s.state, to_vk)
-        if not user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)):
+        sent = user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+        log(f"dev {dev} code {s.code:#x} state {s.state:#x} -> vk {inp.ki.wVk:#x} flags {inp.ki.dwFlags:#x} engine {engine} sent {sent} err {ctypes.get_last_error()}")
+        if not sent:
             ic.interception_send(ctx, dev, ctypes.byref(s), 1)  # this session can't take input (locked or disconnected): give it back
 
 
