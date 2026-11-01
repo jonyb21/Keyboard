@@ -149,6 +149,7 @@ ValidateMain(path) {
 
 RunEngine() {
     global gCfg, gMachine, gMutex, gConfigPath
+    OnMessage(0x84A1, OnBridgeNotice)
 
     ; Correctness rule 5: one instance only. A second launch says so and dies.
     gMutex := DllCall("CreateMutexW", "Ptr", 0, "Int", 1, "Str", "AULA_F75MAX_HOSTLAYER", "Ptr")
@@ -359,6 +360,12 @@ RawInputRegister(on) {
         throw Error("RegisterRawInputDevices failed, error " A_LastError)
     OnMessage(0x00FF, OnRawInput, on ? 1 : 0)   ; WM_INPUT
     gRawOn := on
+}
+
+; interception_bridge.py posts 0x84A1 just before it re-sends an AULA key into
+; this session (over Remote Desktop raw input never sees the physical board).
+OnBridgeNotice(*) {
+    global gEncLastAula := A_TickCount
 }
 
 OnRawInput(wParam, lParam, *) {
