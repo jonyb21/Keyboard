@@ -4,7 +4,6 @@
     {"position": "Backtick", "send": "PrintScreen"},
     {"position": "Win_L", "send": "Alt_L"},
     {"position": "Alt_L", "send": "Win_L"},
-    {"position": "Alt_R", "send": "Ctrl_R"},
     {"position": "PageUp", "send": "KeypadAsterisk"},
     {"position": "PageDown", "send": "KeypadSlash"},
     {"position": "End", "send": "KeypadMinus"},

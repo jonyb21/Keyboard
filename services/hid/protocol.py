@@ -367,10 +367,10 @@ REMAP_PACKET_COUNT = REMAP_TABLE_SIZE // WIRED_REPORT_SIZE  # 9 x 64 bytes
 # ai-docs/key-remap-protocol.md).
 REMAP_MAX_KEY_INDEX = 142
 
-# The F75's Fn key occupies key_index 96 with vendor pseudo-usage 0xAF
-# (data/f75max_layout.json, from the vendor rgb-keyboard.xml). It selects the
-# firmware FN layer and must never be remapped away.
-FN_KEY_INDEX = 96
+# Fn selects the firmware FN layer and must never be remapped away. Firmware
+# V1.13 moved it to key_index 95 (the cap printed Alt, right of Space; base
+# keymap 0xAF at image offset 0x13CDD); 96 (cap printed Fn) is now Right Ctrl.
+FN_KEY_INDEX = 95
 FN_PSEUDO_USAGE = 0xAF
 
 # Slot action types. [F108] pkg/aula/remap.go RemapAction constants;

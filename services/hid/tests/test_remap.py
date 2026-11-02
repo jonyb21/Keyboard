@@ -72,7 +72,7 @@ class TestLayoutData(unittest.TestCase):
         self.assertEqual(layout["pageup"].usage, 0x4B)
         self.assertEqual(layout["pagedown"].key_index, 121)
 
-    def test_fn_key_is_index_96_pseudo_usage_af(self):
+    def test_fn_key_is_index_95_pseudo_usage_af(self):
         layout = remap.load_layout()
         self.assertEqual(layout["fn"].key_index, protocol.FN_KEY_INDEX)
         self.assertEqual(layout["fn"].usage, protocol.FN_PSEUDO_USAGE)
@@ -153,12 +153,12 @@ class TestRemapBuilders(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             protocol.split_remap_table(table[:-1])
 
-    def test_fn_guard_key_index_96(self):
+    def test_fn_guard_key_index_95(self):
         with self.assertRaises(ProtocolError) as ctx:
-            KeyRemap(key_index=96, action=protocol.REMAP_ACTION_KEY).validate()
+            KeyRemap(key_index=95, action=protocol.REMAP_ACTION_KEY).validate()
         self.assertEqual(str(ctx.exception), FN_GUARD_MESSAGE)
         with self.assertRaises(ProtocolError) as ctx:
-            protocol.build_remap_table([protocol.make_key_remap(96, 0x04)])
+            protocol.build_remap_table([protocol.make_key_remap(95, 0x04)])
         self.assertEqual(str(ctx.exception), FN_GUARD_MESSAGE)
 
     def test_slot_bounds_and_duplicates(self):
@@ -223,7 +223,6 @@ class TestNameResolution(unittest.TestCase):
             (19, 0x02, 0x00, 0x46, 0x00),   # Backtick -> PrintScreen
             (92, 0x02, 0x04, 0x00, 0x00),   # Win_L -> Alt_L (bit 0x04)
             (93, 0x02, 0x08, 0x00, 0x00),   # Alt_L -> Win_L (bit 0x08)
-            (95, 0x02, 0x10, 0x00, 0x00),   # Alt_R -> Ctrl_R (bit 0x10)
             (118, 0x02, 0x00, 0x55, 0x00),  # PageUp -> Keypad *
             (121, 0x02, 0x00, 0x54, 0x00),  # PageDown -> Keypad /
             (120, 0x02, 0x00, 0x56, 0x00),  # End -> Keypad -
@@ -352,7 +351,7 @@ class TestClientApplyRemap(unittest.TestCase):
         client = make_client(clock, transport)
         with self.assertRaises(ProtocolError):
             client.apply_remap(
-                [KeyRemap(key_index=96, action=protocol.REMAP_ACTION_KEY)]
+                [KeyRemap(key_index=95, action=protocol.REMAP_ACTION_KEY)]
             )
         self.assertEqual(transport.ops, [])
 
@@ -451,7 +450,7 @@ class TestRemapCli(unittest.TestCase):
         remaps = remap.resolve_mapping(remap.load_mapping_file(KEYCAP_TRUTH))
         table = protocol.build_remap_table(remaps)
         self.assertEqual(b"".join(transport.features[2:11]), table)
-        self.assertIn("Remap applied: 9 keys", text)
+        self.assertIn("Remap applied: 8 keys", text)
         self.assertTrue(transport.closed)
 
     def test_reset_sends_identity_table(self):

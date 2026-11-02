@@ -557,18 +557,18 @@
     {
       "key_index": 95,
       "light_index": 95,
-      "usage": "0xE6",
+      "usage": "0xAF",
       "row": 5,
       "col": 9,
-      "name": "Alt_R"
+      "name": "Fn"
     },
     {
       "key_index": 96,
       "light_index": 96,
-      "usage": "0xAF",
+      "usage": "0xE4",
       "row": 5,
       "col": 10,
-      "name": "Fn"
+      "name": "Ctrl_R"
     },
     {
       "key_index": 99,

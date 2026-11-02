@@ -5,8 +5,8 @@
 // Everything else stays staged and is listed as "not connected yet".
 
 // UI key label -> f75max_layout position name (others match case-insensitively).
-const POS = { '`': 'Backtick', '-': 'Minus', '=': 'Equal', '[': 'LBracket', ']': 'RBracket', '\\': 'Backslash', ';': 'Semicolon', "'": 'Quote', ',': 'Comma', '.': 'Period', '/': 'Slash', Bksp: 'Backspace', Del: 'Delete', PgUp: 'PageUp', PgDn: 'PageDown', Caps: 'CapsLock', Shift: 'Shift_L', RShift: 'Shift_R', Ctrl: 'Ctrl_L', Win: 'Win_L', Alt: 'Alt_L', RAlt: 'Alt_R' };
-const LAYOUT = 'Esc F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 Backtick 1 2 3 4 5 6 7 8 9 0 Minus Equal Tab Q W E R T Y U I O P LBracket RBracket CapsLock A S D F G H J K L Semicolon Quote Backslash Shift_L Z X C V B N M Comma Period Slash Shift_R Enter Ctrl_L Win_L Alt_L Space Alt_R Left Down Up Right Backspace PageUp Delete End PageDown'.split(' ');
+const POS = { '`': 'Backtick', '-': 'Minus', '=': 'Equal', '[': 'LBracket', ']': 'RBracket', '\\': 'Backslash', ';': 'Semicolon', "'": 'Quote', ',': 'Comma', '.': 'Period', '/': 'Slash', Bksp: 'Backspace', Del: 'Delete', PgUp: 'PageUp', PgDn: 'PageDown', Caps: 'CapsLock', Shift: 'Shift_L', RShift: 'Shift_R', Ctrl: 'Ctrl_L', Win: 'Win_L', Alt: 'Alt_L', RCtrl: 'Ctrl_R' };
+const LAYOUT = 'Esc F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 Backtick 1 2 3 4 5 6 7 8 9 0 Minus Equal Tab Q W E R T Y U I O P LBracket RBracket CapsLock A S D F G H J K L Semicolon Quote Backslash Shift_L Z X C V B N M Comma Period Slash Shift_R Enter Ctrl_L Win_L Alt_L Space Ctrl_R Left Down Up Right Backspace PageUp Delete End PageDown'.split(' ');
 // UI send value -> remap.py send name.
 const SEND = { PrintScreen: 'PrintScreen', 'Right Ctrl': 'Ctrl_R', 'Right Alt': 'Alt_R', 'Right Shift': 'Shift_R', 'Keypad *': 'KeypadAsterisk', 'Keypad /': 'KeypadSlash', 'Keypad -': 'KeypadMinus', 'Keypad +': 'KeypadPlus', Insert: 'Insert', Home: 'Home', Pause: 'Pause', 'Scroll Lock': 'ScrollLock', 'Num Lock': 'NumLock', Menu: 'Menu' };
 for (let i = 13; i <= 24; i++) SEND['F' + i] = '0x' + (0x68 + i - 13).toString(16).toUpperCase();
