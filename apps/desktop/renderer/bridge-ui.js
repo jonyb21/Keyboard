@@ -218,9 +218,9 @@ function plan() {
     ops.push({ op: 'light', mode: lightMode(L.mode), brightness: L.brightness, speed: L.speed, colorful: true });
     onSent.push(() => { Object.assign(wr.light, { mode: L.mode, brightness: L.brightness, speed: L.speed }); });
   }
-  const shot = st.lcd.current !== wr.lcd.current && ui.file && window.aula;
+  const shot = st.lcd.current !== wr.lcd.current && st.lcd.path && window.aula;
   if (shot) {
-    const op = { op: 'screen_upload', path: window.aula.pathForFile(ui.file) };
+    const op = { op: 'screen_upload', path: st.lcd.path };
     if (st.lcd.delay !== wr.lcd.delay) op.delay_ms = st.lcd.delay;
     ops.push(op);
     onSent.push(() => { wr.lcd = clone(st.lcd); });
@@ -231,6 +231,7 @@ function plan() {
     if (d.tag === 'Lighting' && /^(Effect|Brightness|Speed) /.test(d.text)) return;
     if (d.tag === 'Screen' && shot && /^(Screen image|Frame delay)/.test(d.text)) return;
     if (d.tag === 'Screen' && d.text.startsWith('Frame delay')) return skipped.push(d.text + ' (choose an image to send it with the delay)');
+    if (d.tag === 'Screen' && LIB.includes(st.lcd.current)) return skipped.push(d.text + ' (built-in previews cannot be sent; upload your own image or GIF)');
     if (d.tag === 'Macros') return d.ev || d.text.startsWith('Edit ') ? (macSending ? 0 : skipped.push(d.tag + ': ' + d.text)) : skipped.push(d.tag + ': ' + d.text + (d.text.startsWith('Add') ? " (record the macro's keys first)" : ' (its keys were never read from the board)'));
     skipped.push(d.tag + ': ' + d.text);
   });

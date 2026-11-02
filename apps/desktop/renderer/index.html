@@ -501,7 +501,7 @@ function diffs() {
   f('Lighting', 'Brightness ' + wr.light.brightness + ' -> ' + st.light.brightness, st.light.brightness === wr.light.brightness, () => st.light.brightness = wr.light.brightness);
   f('Lighting', 'Speed ' + wr.light.speed + ' -> ' + st.light.speed, st.light.speed === wr.light.speed, () => st.light.speed = wr.light.speed);
   f('Lighting', 'Profile ' + (st.light.profile || 'none'), st.light.profile === wr.light.profile, () => st.light.profile = wr.light.profile);
-  f('Screen', 'Screen image: ' + st.lcd.current, st.lcd.current === wr.lcd.current, () => { st.lcd.current = wr.lcd.current; st.lcd.frames = wr.lcd.frames; });
+  f('Screen', 'Screen image: ' + st.lcd.current, st.lcd.current === wr.lcd.current, () => { st.lcd.current = wr.lcd.current; st.lcd.frames = wr.lcd.frames; st.lcd.path = wr.lcd.path; });
   f('Screen', 'Frame delay ' + wr.lcd.delay + ' -> ' + st.lcd.delay + ' ms', st.lcd.delay === wr.lcd.delay, () => st.lcd.delay = wr.lcd.delay);
   ENC.forEach(([k, n]) => f('Knob (this PC)', n + ': ' + dispV(wr.enc[k]) + ' -> ' + dispV(st.enc[k]), st.enc[k] === wr.enc[k], () => { if (wr.enc[k] === undefined) delete st.enc[k]; else st.enc[k] = wr.enc[k]; }));
   f('Host layer (this PC)', 'Tap window ' + wr.timing.tap + ' -> ' + st.timing.tap + ' ms', st.timing.tap === wr.timing.tap, () => st.timing.tap = wr.timing.tap);
@@ -984,7 +984,7 @@ document.addEventListener('click', e => {
   else if (a === 'live') commit(() => st.live.on = !st.live.on);
   else if (a === 'rule') commit(() => st.live.rules[v] = !st.live.rules[v]);
   else if (a === 'upload') $('file').click();
-  else if (a === 'lib') { ui.img = null; ui.file = null; ui.url = ''; ui.upErr = ''; const it = D.lcd.library.find(x => x.name === v); commit(() => { st.lcd.current = it.name; st.lcd.frames = it.frames; }); }
+  else if (a === 'lib') { ui.img = null; ui.file = null; ui.url = ''; ui.upErr = ''; const it = D.lcd.library.find(x => x.name === v); commit(() => { st.lcd.current = it.name; st.lcd.frames = it.frames; delete st.lcd.path; }); }
   else if (a === 'macadd') { let n = 1; while (st.macros.some(m => m.name === 'Macro ' + n)) n++; if (macUsed() >= D.macros.capacityActions) return toast('Not enough macro capacity'); ui.macRec = false; ui.macNote = ''; ui.macSel = st.macros.length; commit(() => st.macros.push({ name: 'Macro ' + n, steps: 0, key: 'none', events: [] })); }
   else if (a === 'macedit') { ui.macRec = false; ui.macNote = ''; ui.macSel = +b.dataset.i; render(); }
   else if (a === 'macdel') { ui.macRec = false; ui.macSel = null; ui.macNote = ''; commit(() => st.macros.splice(+b.dataset.i, 1)); }
@@ -1164,7 +1164,7 @@ document.addEventListener('change', e => {
     if (f.size > 8 * 1024 * 1024) { ui.upErr = f.name + ' is over 8 MB; pick a smaller file.'; return render(); }
     if (ui.url) URL.revokeObjectURL(ui.url);
     const im = new Image(); im.onload = () => paintLcd(1.2); ui.url = URL.createObjectURL(f); im.src = ui.url; ui.img = im; ui.file = f; ui.gif = f.type === 'image/gif';
-    commit(() => { st.lcd.current = f.name; st.lcd.frames = f.type === 'image/gif' ? null : 1; });
+    commit(() => { st.lcd.current = f.name; st.lcd.frames = f.type === 'image/gif' ? null : 1; st.lcd.path = window.aula ? window.aula.pathForFile(f) : ''; });
   }
 });
 document.addEventListener('keydown', e => {
