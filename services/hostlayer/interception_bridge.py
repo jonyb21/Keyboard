@@ -78,6 +78,53 @@ def engine_window(user32):
     return found[0] if found else None
 
 
+CONSUMER_VK = {0xE9: 0xAF, 0xEA: 0xAE, 0xE2: 0xAD}  # volume up / down / mute
+
+
+def consumer_vk(report):
+    """VK for one consumer-control input report ([report id, usage lo, usage hi]); 0 = release."""
+    return CONSUMER_VK.get(report[1] | report[2] << 8, 0) if len(report) >= 3 else None
+
+
+def relay_knob(user32, notify):
+    """The knob's volume and mute are consumer-control reports, which Interception
+    never sees and Windows delivers to the console session. Read them from the
+    AULA's consumer collection and re-send them here as volume keys."""
+    import hid
+    import threading
+    import time
+
+    def run():
+        while True:
+            paths = [d["path"] for d in hid.enumerate(0x0C45, 0x800A) if d["usage_page"] == 0x0C and d["usage"] == 1]
+            if not paths:
+                time.sleep(5)
+                continue
+            dev, held = hid.device(), 0
+            try:
+                dev.open_path(paths[0])
+                while True:
+                    vk = consumer_vk(dev.read(64, 1000))
+                    if vk is None or vk == held:
+                        continue
+                    for v, up in ((held, True), (vk, False)):
+                        if v:
+                            if not up:
+                                notify()
+                            inp = INPUT(type=1)
+                            inp.ki.wVk, inp.ki.dwFlags = v, KEYEVENTF_EXTENDEDKEY | (KEYEVENTF_KEYUP if up else 0)
+                            user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+                    log(f"knob consumer vk {vk:#x}")
+                    held = vk
+            except OSError as e:  # unplugged: retry
+                log(f"knob relay: {e}")
+                time.sleep(2)
+            finally:
+                dev.close()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
 def main():
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     ic = ctypes.CDLL(DLL)
@@ -95,8 +142,16 @@ def main():
     if not ctx:
         sys.exit("Interception is not running (install it and reboot)")
     ic.interception_set_filter(ctx, ctypes.cast(ic.interception_is_keyboard, ctypes.c_void_p), 0xFFFF)
-    aula, hwid, engine = {}, ctypes.create_unicode_buffer(500), None
+    aula, hwid, engine = {}, ctypes.create_unicode_buffer(500), [None]
     s, inp = Stroke(), INPUT(type=1)
+
+    def notify():
+        if not (engine[0] and user32.PostMessageW(engine[0], NOTICE, 0, 0)):
+            engine[0] = engine_window(user32)
+            if engine[0]:
+                user32.PostMessageW(engine[0], NOTICE, 0, 0)
+
+    relay_knob(user32, notify)
     while True:
         dev = ic.interception_wait(ctx)
         if ic.interception_receive(ctx, dev, ctypes.byref(s), 1) <= 0:
@@ -108,13 +163,10 @@ def main():
         if not aula[dev]:
             ic.interception_send(ctx, dev, ctypes.byref(s), 1)
             continue
-        if not (engine and user32.PostMessageW(engine, NOTICE, 0, 0)):
-            engine = engine_window(user32)
-            if engine:
-                user32.PostMessageW(engine, NOTICE, 0, 0)
+        notify()
         inp.ki.wVk, inp.ki.wScan, inp.ki.dwFlags = input_fields(s.code, s.state, to_vk)
         sent = user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
-        log(f"dev {dev} code {s.code:#x} state {s.state:#x} -> vk {inp.ki.wVk:#x} flags {inp.ki.dwFlags:#x} engine {engine} sent {sent} err {ctypes.get_last_error()}")
+        log(f"dev {dev} code {s.code:#x} state {s.state:#x} -> vk {inp.ki.wVk:#x} flags {inp.ki.dwFlags:#x} engine {engine[0]} sent {sent} err {ctypes.get_last_error()}")
         if not sent:
             ic.interception_send(ctx, dev, ctypes.byref(s), 1)  # this session can't take input (locked or disconnected): give it back
 

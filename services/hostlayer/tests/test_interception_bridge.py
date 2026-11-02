@@ -24,6 +24,13 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual((vk, scan), (0, 0x64))
         self.assertEqual(flags, bridge.KEYEVENTF_KEYUP | bridge.KEYEVENTF_SCANCODE)
 
+    def test_consumer_reports_map_to_volume_keys(self):
+        self.assertEqual(bridge.consumer_vk([3, 0xE9, 0]), 0xAF)
+        self.assertEqual(bridge.consumer_vk([3, 0xEA, 0]), 0xAE)
+        self.assertEqual(bridge.consumer_vk([3, 0xE2, 0]), 0xAD)
+        self.assertEqual(bridge.consumer_vk([3, 0, 0]), 0)
+        self.assertIsNone(bridge.consumer_vk([]))
+
 
 if __name__ == "__main__":
     unittest.main()
