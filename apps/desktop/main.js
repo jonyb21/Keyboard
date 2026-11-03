@@ -122,6 +122,12 @@ ipcMain.handle('hostlayer', async (_e, req) => {
   return base(false, 'error: op not allowed');
 });
 ipcMain.handle('info', () => ({ live: LIVE }));
+// Programs with a window open now, as [name, exe], so per-app rules can pick any of them.
+ipcMain.handle('running-apps', () => new Promise(resolve => {
+  const ps = "Get-Process | ? MainWindowHandle -ne 0 | % { (($_.Description, $_.ProcessName) -ne $null)[0] + '|' + $_.ProcessName + '.exe' }";
+  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 15000 }, (err, out) =>
+    resolve(err ? [] : [...new Set(String(out).split(/\r?\n/).filter(l => l.includes('|')))].map(l => l.split('|'))));
+}));
 ipcMain.handle('board-image', () => {
   try { return 'data:image/png;base64,' + fs.readFileSync(BOARD_IMAGE).toString('base64'); } catch { return null; }
 });

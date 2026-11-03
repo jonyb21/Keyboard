@@ -701,6 +701,7 @@ function renderStrip() {
     + '<div class="grp"><button class="opt" type="button" role="switch" aria-checked="' + ui.showMap + '" data-act="showmap" data-fid="smap">Show mappings</button></div>'
     + '<div class="grp" role="group" aria-label="Locks">' + Object.keys(st.locks).map(n => '<button class="opt" type="button" role="switch" aria-checked="' + st.locks[n] + '" data-act="lock" data-v="' + esc(n) + '" data-fid="sl' + esc(n) + '">' + esc(n) + ' lock</button>').join('') + '</div>';
 }
+let RUN_APPS = [];
 const APP_SUG = [['SolidWorks', 'SLDWORKS.exe'], ['Chrome', 'chrome.exe'], ['Edge', 'msedge.exe'], ['Firefox', 'firefox.exe'], ['Excel', 'EXCEL.EXE'], ['InDesign', 'InDesign.exe'], ['VS Code', 'Code.exe'], ['Notepad', 'notepad.exe']];
 function appPicker() {
   const ks = Object.keys(st.apps);
@@ -708,7 +709,7 @@ function appPicker() {
     + '<button class="opt" type="button" data-act="appadd" data-fid="appadd" aria-expanded="' + !!ui.addApp + '">Add app</button>'
     + (ui.app && st.apps[ui.app] ? '<button class="opt" type="button" data-act="appdel" data-fid="appdel" aria-label="Remove ' + esc(st.apps[ui.app].name) + '">Remove</button>' : '') + '</div>';
   if (ui.addApp) h += '<div class="grp app" role="group" aria-label="Add app"><input type="text" data-appf="appName" data-fid="appname" aria-label="App name" placeholder="Name, e.g. SolidWorks" maxlength="24" value="' + esc(ui.appName || '') + '">'
-    + '<input type="text" list="appsug" data-appf="appExe" data-fid="appexe" aria-label="Exe name" placeholder="SLDWORKS.exe" maxlength="60" value="' + esc(ui.appExe || '') + '"><datalist id="appsug">' + APP_SUG.map(([n, x]) => '<option value="' + x + '" label="' + n + '">').join('') + '</datalist>'
+    + '<input type="text" list="appsug" data-appf="appExe" data-fid="appexe" aria-label="Exe name" placeholder="SLDWORKS.exe" maxlength="60" value="' + esc(ui.appExe || '') + '"><datalist id="appsug">' + APP_SUG.concat(RUN_APPS.filter(([, x]) => !APP_SUG.some(s => s[1].toLowerCase() === x.toLowerCase()))).map(([n, x]) => '<option value="' + esc(x) + '" label="' + esc(n) + '">').join('') + '</datalist>'
     + '<button class="btn pri" type="button" data-act="appok" data-fid="appok">Add</button><button class="btn" type="button" data-act="appno" data-fid="appno">Cancel</button>' + (ui.appErr ? '<span class="err small" role="alert">' + esc(ui.appErr) + '</span>' : '') + '</div>';
   return h;
 }
@@ -967,10 +968,10 @@ document.addEventListener('click', e => {
   else if (a === 'etype') { ui.ed.type = v; ui.ed.val = ''; ui.ed.err = ''; ui.ed.slots = null; ui.ed.icons = null; ui.iconFor = -1; render(); }
   else if (a === 'apply') applyEd();
   else if (a === 'trig') { edFor(ui.sel, v); render(); }
-  else if (a === 'appadd') { ui.addApp = !ui.addApp; ui.appErr = ''; render(); }
+  else if (a === 'appadd') { ui.addApp = !ui.addApp; ui.appErr = ''; render(); if (ui.addApp && window.aula) window.aula.runningApps().then(r => { RUN_APPS = r; if (ui.addApp) render(); }); }
   else if (a === 'appno') { ui.addApp = false; render(); }
   else if (a === 'appok') {
-    const exe = (ui.appExe || '').trim(), sug = APP_SUG.find(x => x[1].toLowerCase() === exe.toLowerCase());
+    const exe = (ui.appExe || '').trim(), sug = APP_SUG.concat(RUN_APPS).find(x => x[1].toLowerCase() === exe.toLowerCase());
     if (!/^[\w .()+-]+\.exe$/i.test(exe)) { ui.appErr = 'Enter the exe file name, like SLDWORKS.exe (no folder).'; return render(); }
     const have = Object.keys(st.apps).find(x => x.toLowerCase() === exe.toLowerCase()), key = have || exe;
     if (!have) commit(() => { st.apps[key] = newApp((ui.appName || '').trim() || (sug ? sug[0] : exe.replace(/\.exe$/i, ''))); });
