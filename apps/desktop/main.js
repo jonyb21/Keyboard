@@ -122,11 +122,18 @@ ipcMain.handle('hostlayer', async (_e, req) => {
   return base(false, 'error: op not allowed');
 });
 ipcMain.handle('info', () => ({ live: LIVE }));
-// Programs with a window open now, as [name, exe], so per-app rules can pick any of them.
-ipcMain.handle('running-apps', () => new Promise(resolve => {
-  const ps = "Get-Process | ? MainWindowHandle -ne 0 | % { (($_.Description, $_.ProcessName) -ne $null)[0] + '|' + $_.ProcessName + '.exe' }";
-  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 15000 }, (err, out) =>
-    resolve(err ? [] : [...new Set(String(out).split(/\r?\n/).filter(l => l.includes('|')))].map(l => l.split('|'))));
+// Installed (Start menu) and open programs, as [name, exe], so per-app rules can pick any of them.
+ipcMain.handle('program-list', () => new Promise(resolve => {
+  const ps = String.raw`$sh = New-Object -ComObject WScript.Shell
+foreach ($d in "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs") {
+  Get-ChildItem $d -Recurse -Filter *.lnk -EA 0 | % { $t = $sh.CreateShortcut($_.FullName).TargetPath
+    if ($t -like '*.exe' -and $_.BaseName -notmatch 'uninstall|readme|help|website') { $_.BaseName + '|' + (Split-Path $t -Leaf) } } }
+Get-Process | ? MainWindowHandle -ne 0 | % { (($_.Description, $_.ProcessName) -ne $null)[0] + '|' + $_.ProcessName + '.exe' }`;
+  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 30000 }, (err, out) => {
+    const seen = new Map();   // one entry per exe; the Start menu name wins
+    if (!err) String(out).split(/\r?\n/).forEach(l => { const [n, x] = l.split('|'); if (n && x && !seen.has(x.toLowerCase())) seen.set(x.toLowerCase(), [n.trim(), x.trim()]); });
+    resolve([...seen.values()].sort((a, b) => a[0].localeCompare(b[0])));
+  });
 }));
 ipcMain.handle('board-image', () => {
   try { return 'data:image/png;base64,' + fs.readFileSync(BOARD_IMAGE).toString('base64'); } catch { return null; }

@@ -701,11 +701,13 @@ function renderStrip() {
     + '<div class="grp"><button class="opt" type="button" role="switch" aria-checked="' + ui.showMap + '" data-act="showmap" data-fid="smap">Show mappings</button></div>'
     + '<div class="grp" role="group" aria-label="Locks">' + Object.keys(st.locks).map(n => '<button class="opt" type="button" role="switch" aria-checked="' + st.locks[n] + '" data-act="lock" data-v="' + esc(n) + '" data-fid="sl' + esc(n) + '">' + esc(n) + ' lock</button>').join('') + '</div>';
 }
-let RUN_APPS = [];
+let RUN_APPS = [];   // [name, exe] of installed and open programs, filled once at start
+if (window.aula) window.aula.programs().then(r => { RUN_APPS = r; render(); });
 const APP_SUG = [['SolidWorks', 'SLDWORKS.exe'], ['Chrome', 'chrome.exe'], ['Edge', 'msedge.exe'], ['Firefox', 'firefox.exe'], ['Excel', 'EXCEL.EXE'], ['InDesign', 'InDesign.exe'], ['VS Code', 'Code.exe'], ['Notepad', 'notepad.exe']];
 function appPicker() {
   const ks = Object.keys(st.apps);
-  let h = '<div class="grp app"><label class="lbl" for="appsel">App</label><select id="appsel" data-appsel data-fid="appsel"><option value="">All apps</option>' + ks.map(x => '<option value="' + esc(x) + '"' + (ui.app === x ? ' selected' : '') + '>' + esc(st.apps[x].name) + ' (' + esc(x) + ')</option>').join('') + '</select>'
+  let h = '<div class="grp app"><label class="lbl" for="appsel">App</label><select id="appsel" data-appsel data-fid="appsel"><option value="">All apps</option>' + ks.map(x => '<option value="' + esc(x) + '"' + (ui.app === x ? ' selected' : '') + '>' + esc(st.apps[x].name) + ' (' + esc(x) + ')</option>').join('')
+    + (RUN_APPS.length ? '<optgroup label="Your programs">' + RUN_APPS.filter(([, x]) => !ks.some(k => k.toLowerCase() === x.toLowerCase())).map(([n, x]) => '<option value="' + esc(x) + '">' + esc(n) + '</option>').join('') + '</optgroup>' : '') + '</select>'
     + '<button class="opt" type="button" data-act="appadd" data-fid="appadd" aria-expanded="' + !!ui.addApp + '">Add app</button>'
     + (ui.app && st.apps[ui.app] ? '<button class="opt" type="button" data-act="appdel" data-fid="appdel" aria-label="Remove ' + esc(st.apps[ui.app].name) + '">Remove</button>' : '') + '</div>';
   if (ui.addApp) h += '<div class="grp app" role="group" aria-label="Add app"><input type="text" data-appf="appName" data-fid="appname" aria-label="App name" placeholder="Name, e.g. SolidWorks" maxlength="24" value="' + esc(ui.appName || '') + '">'
@@ -968,7 +970,7 @@ document.addEventListener('click', e => {
   else if (a === 'etype') { ui.ed.type = v; ui.ed.val = ''; ui.ed.err = ''; ui.ed.slots = null; ui.ed.icons = null; ui.iconFor = -1; render(); }
   else if (a === 'apply') applyEd();
   else if (a === 'trig') { edFor(ui.sel, v); render(); }
-  else if (a === 'appadd') { ui.addApp = !ui.addApp; ui.appErr = ''; render(); if (ui.addApp && window.aula) window.aula.runningApps().then(r => { RUN_APPS = r; if (ui.addApp) render(); }); }
+  else if (a === 'appadd') { ui.addApp = !ui.addApp; ui.appErr = ''; render(); }
   else if (a === 'appno') { ui.addApp = false; render(); }
   else if (a === 'appok') {
     const exe = (ui.appExe || '').trim(), sug = APP_SUG.concat(RUN_APPS).find(x => x[1].toLowerCase() === exe.toLowerCase());
@@ -1152,7 +1154,12 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.layer !== undefined) { ui.layer = e.target.value; ui.sel = null; ui.ed = null; return render(); }
-  if (e.target.dataset && e.target.dataset.appsel !== undefined) { ui.app = e.target.value; ui.sel = null; ui.ed = null; return render(); }
+  if (e.target.dataset && e.target.dataset.appsel !== undefined) {
+    const x = e.target.value, p = RUN_APPS.find(r => r[1] === x);
+    ui.app = x; ui.sel = null; ui.ed = null;
+    if (x && !st.apps[x] && p) return commit(() => { st.apps[x] = newApp(p[0].slice(0, 24)); });
+    return render();
+  }
   const t = e.target;
   if (t.dataset.ed) { ui.ed.val = t.value; }
   if (t.dataset.mevd !== undefined) { const n = Math.round(+t.value), m = macCur(), j = +t.dataset.mevd; if (m && m.events[j] && n >= 10 && n <= 65535 && n !== m.events[j].delay) commit(() => { m.events[j].delay = n; }); else render(); }
