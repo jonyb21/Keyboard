@@ -319,8 +319,8 @@ class ScreenClient:
     MI_03 carries feature commands and ACKs. MI_02 carries only 4096-byte
     output pages plus fresh input ACKs. The final `04 02` is attempted after
     every successfully sent begin, including uncertain begin ACKs and page
-    failures. It is not sent after a definite begin-send failure; `04 F0` is
-    never sent.
+    failures. It is not sent after a definite begin-send failure. `04 F0`
+    finalize follows only a fully successful upload; it saves the image.
     """
 
     PAGE_ACK_TIMEOUT_S = 0.350
@@ -507,6 +507,8 @@ class ScreenClient:
                 cleanup_error=cleanup_error,
             ) from cleanup_error
         assert ack_prefix is not None
+        # Without `04 F0` the image only lasts until power-off (Jon-local, fw 1.13).
+        self._exchange(protocol.build_wired_finalize())
         return ScreenUploadResult(
             page_count=page_count,
             ack_prefix=ack_prefix,

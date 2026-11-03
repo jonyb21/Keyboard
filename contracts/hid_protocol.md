@@ -282,8 +282,10 @@ F75 Max 128x128 screen):
 5. After a fully sent begin, success or any later failure waits 100 ms and
    attempts feature `04 02` plus ACK on MI_03. A begin ACK failure is uncertain:
    the firmware may be active, so cleanup is attempted. If the begin send
-   itself definitively fails, no `04 02` is sent. Screen upload never sends
-   `04 F0`.
+   itself definitively fails, no `04 02` is sent.
+6. After a fully successful upload and apply, send feature `04 F0` with ACK.
+   Observed Jon-local on fw 1.13 (2026-11-03): without it the image shows but
+   reverts after unplug; with it the image survives power-off.
 
 Stream format ([OSX], F75-specific): 256-byte header (byte[0]=frame count,
 bytes[1..N]=per-frame delay, units ~2 ms) + frames of 128x128 RGB565

@@ -482,7 +482,7 @@ class TestScreenUpload(unittest.TestCase):
         self.assertTrue(mutated)
         self.assertEqual(b"".join(screen.writes), expected)
 
-    def test_exact_sequence_fresh_ack_and_no_finalize(self):
+    def test_exact_sequence_fresh_ack_and_finalize(self):
         clock = FakeClock()
         control = MockTransport(clock)
         screen = ScreenTransport(
@@ -512,9 +512,9 @@ class TestScreenUpload(unittest.TestCase):
                 protocol.build_wired_begin(),
                 protocol.build_wired_screen_init(9),
                 protocol.build_wired_apply(),
+                protocol.build_wired_finalize(),
             ],
         )
-        self.assertNotIn(protocol.build_wired_finalize(), features)
         self.assertEqual(
             screen.writes,
             [
