@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "threshold": 1.0,
+  "cases": [
+    {
+      "id": "exact_f75max_rev0108_driver_1_0_0_5",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "use_installed_f75max_1_0_0_5",
+      "expected_safe_to_configure": true
+    },
+    {
+      "id": "plain_f75_sinowealth_must_not_use_max_driver",
+      "evidence": {
+        "hardware": {"present": true, "vid": "258A", "pid": "010C", "revision": null, "bus_reported_name": "AULA F75"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "stop_wrong_hardware",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "f75max_iso_80b1_must_not_use_800a_driver",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "80B1", "revision": "0200", "bus_reported_name": "AULA F75MAX ISO"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "stop_wrong_hardware",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "right_vid_pid_wrong_revision_stops",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0107", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "stop_wrong_hardware",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "right_hardware_iso_driver_2_0_0_2_stops",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "2.0.0.2", "config_file_version": "2.0.0.2", "software_name": "AULA F75MAX ISO Mechanische Tastatur Driver", "keyboard_name": "AULA F75MAX ISO Mechanische Tastatur", "target_vid": "0C45", "target_pid": "80B1", "target_product_name": "AULA F75MAX"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "stop_wrong_configurator",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "right_hardware_plain_f75_driver_2_0_stops",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "2.0", "config_file_version": "2.0", "software_name": "AULA F75 Driver", "keyboard_name": "AULA F75", "target_vid": "258A", "target_pid": "010C", "target_product_name": "AULA F75"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 1}
+      },
+      "expected_action": "stop_wrong_configurator",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "missing_response_state_requires_repair",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": false, "response_present": false, "response_level": null}
+      },
+      "expected_action": "repair_profile_state_before_changes",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "response_level_zero_fails_closed",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 0}
+      },
+      "expected_action": "repair_profile_state_before_changes",
+      "expected_safe_to_configure": false
+    },
+    {
+      "id": "response_level_five_is_valid",
+      "evidence": {
+        "hardware": {"present": true, "vid": "0C45", "pid": "800A", "revision": "0108", "bus_reported_name": "AULA F75Max"},
+        "configurator": {"installed": true, "version": "1.0.0.5", "config_file_version": "1.0.0.5", "software_name": "AULA F75 Max Gasket Mechanical Keyboard Driver", "keyboard_name": "AULA F75 Max Gasket Mechanical Keyboard", "target_vid": "0C45", "target_pid": "800A", "target_product_name": "AULA F75Max"},
+        "profile": {"healthy": true, "response_present": true, "response_level": 5}
+      },
+      "expected_action": "use_installed_f75max_1_0_0_5",
+      "expected_safe_to_configure": true
+    }
+  ]
+}

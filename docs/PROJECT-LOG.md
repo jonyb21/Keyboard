@@ -1,249 +1,162 @@
-# AULA F75 Max — project log
+# AULA F75 Max upgrade record
 
-What was done, why, and what is proven. Session date: 2026-08-10.
-Hardware: AULA F75 Max Gasket, wired USB `0C45:800A`, 2.4G dongle `05AC:024F`.
+Session: 2026-08-12. Hardware: AULA F75 Max Gasket, wired USB `0C45:800A`,
+revision `0108`.
 
----
+## Outcome
 
-## 1. The original problem
+The board uses the fastest supported response setting, a one-minute idle
+timeout, a firmware-accepted collision-free onboard map, and a tested host-side
+productivity layer that starts hidden at logon. The repo now also has exact-F75
+LCD/clock tooling, two named stock-engine lighting profiles, and capture-gated
+per-key profile compilation. Focus Core Static `168BFF`, brightness 2 is the
+final live lighting state after successful Aurora and Focus Core applications.
 
-The keyboard would not connect to its configurator app. Three AULA apps were
-installed on the machine; none of them worked.
+## Media and named lighting package
 
-Root cause, established by reading each app's own config files and matching
-them against the live USB device:
+- `Focus Core`: deployable verified stock Static mode, `168BFF`, brightness 2.
+- `Aurora`: deployable verified stock Flowing mode, `7D42FF`, brightness 4,
+  colorful palette.
+- Per-key Focus Core/Aurora: deterministic 80-key `light_index` compiler and
+  show/dry-run output; live apply refuses with `capture_required` because the
+  only known `04 23` command is F108-specific.
+- LCD sources: generated Focus Core and Aurora PNGs copied to ignored
+  `.local-assets/lcd/`; only prompt text, hashes, and manifests are tracked.
+- Stock restore: 251 preserved decoded PNG frames copied to ignored
+  `.local-assets/lcd/stock/frames`, candidate delay byte 10, 2009 output pages,
+  prepared SHA256 `b2ac629ee68ca7fc929a8861d1ed851182e9bfafb2fc7ef9d3f3658fe0d32d3a`.
+  The database-to-wire timing conversion is not proven. The installed `0.gif`
+  is not the default because its embedded timing is zero/ambiguous.
 
-| Installed app | Binds to | Verdict |
-|---|---|---|
-| AULA F75 v2.0 | `258A:010C` (SinoWealth) | Wrong keyboard entirely |
-| AULA F75MAX ISO v2.0.0.2 | `0C45:80B1` | Wrong hardware revision |
-| **AULA F75 Max Gasket v1.0.0.5** | **`0C45:800A`** | **Correct** |
+LCD upload sends 4096-byte pages only as MI_02 output reports. It requires one
+unambiguous exact MI_03/MI_02 endpoint pair and enforces the pinned `01 5A 02`
+page ACK prefix. The successful 2026-08-12 test-pattern returned that prefix on
+all 9 pages for stream SHA256
+`d4e94333d863cdfdd7f08deae09f5eb8b9d0011375150de8a8b5cded89f342bf`;
+the watchdog exited 0. The uploader records every prefix, waits 100 ms, and
+attempts final `04 02` even after failure. It never sends `04 F0`. Custom image
+Displayed-pixel correctness and restore timing still require an explicit visual
+record.
 
-The board is the F75 **Max**, not the plain F75. The plain-F75 app scans for a
-different chip vendor and can never see it. The two wrong apps were uninstalled;
-the correct one was launched and confirmed bound to the board.
+## Hardware and software decision
 
-Also ruled out, with evidence, so nobody retries them:
+The installed AULA F75 Max Gasket configurator `1.0.0.5` exactly matches the
+live board. The vendor package has no firmware binary or update URL, while AULA
+publishes multiple incompatible F75 firmware branches. No firmware was flashed.
+`services/device_audit` now makes that decision deterministic and fail-closed.
 
-- **Epomaker web hub** (`hub.epomaker.com`) — pulled its full 38-model support
-  list. No F75 of any kind.
-- **AULA HUB web driver** (`hub.aulacn.com`) — supports F75 **HE** (magnetic)
-  and F87/F108 PRO V2 only. Not the Max.
+## Onboard settings
 
-Note: all three vendor apps ship an executable named `DeviceDriver.exe`, so
-uninstalling one kills a running instance of another.
+| Setting | Before | After |
+|---|---:|---:|
+| Key response | Level 2, about 5-6 ms wired | Level 1, about 2-3 ms wired |
+| Sleep | 5 minutes | 1 minute |
+| Lighting | Rolling rainbow, brightness 5/5 | Focus Core Static `168BFF`, brightness 2/5 (final live state after Aurora verification). |
 
----
+Level 1 is vendor-supported. If physical switch chatter appears, return only
+the response setting to Level 2; all other improvements remain valid.
 
-## 2. Research: what this hardware actually is
+## Cross-keyboard collision repair
 
-Two background agents ran a read-only investigation. Full reports:
-`docs/report-vendor-app-analysis.md` and `docs/report-sonixqmk-feasibility.md`.
+The running CIDOO V21 runtime globally owns bare `F16/F17` for encoder rotation.
+The previous AULA map used those tokens for physical F6/F7, so those keys were
+silently routed as CIDOO encoder events even before the AULA host layer ran.
 
-**Silicon**: SONiX (VID `0x0C45`), almost certainly **SN32F290** (Cortex-M0,
-256 KB flash) plus a 16 MB SPI flash holding the TFT screen assets. Identified
-via an F108 Pro teardown sharing the same `800A` platform PID. This is *not*
-the STM32 or SinoWealth part that search results claim for the plain F75.
+The AULA range is now:
 
-**Stock firmware ceiling** (from the vendor app's own data files):
-
-| Capability | Stock support |
+| Physical key | Token |
 |---|---|
-| Layers | Exactly 2 (Top + Fn) |
-| Tap-hold / mod-tap | None |
-| Debounce | One global 5-level setting (~2–18 ms wired), not per-key |
-| Key remap | All 79 keys, both layers |
-| Macros | Yes, finite device storage |
-| RGB | 20 preset modes, per-key static, animated custom |
-| TFT screen | 128×128, ≤255 frames, 256-byte header |
+| F1, F3, F5 | F13, F14, F15 |
+| F6, F7, F8 | F18, F19, F20 |
+| F9, F10, F11, F12 | F21, F22, F23, F24 |
 
-**QMK verdict: feasible, but pioneering.** No SonixQMK or QMK port exists for
-any AULA board. The SN32F290 board definition exists in SonixQMK but no shipped
-keyboard has ever used it. Flashing would permanently kill wireless and the TFT
-screen, and **no public stock firmware dump exists** for this board, so there is
-nothing to restore from. An SWD dump (ST-Link) before flashing is mandatory.
+The canonical onboard map and host config carry the same exact set. Gate tests
+and a policy eval reject any reintroduction of `F16/F17`.
 
-**Decision: do not flash.** Without the dump tool the operation is
-irreversible, and the trade (lose wireless + screen to gain layers) is bad.
-The chosen path is host-side control of the stock firmware's own protocol.
+## Productivity layer
 
----
+Physical F-row actions preserve the evidence-driven order: undo/redo,
+Chrome/Outlook, window switching, SolidWorks/Explorer, Claude/Remote Desktop,
+media, numeric-layer toggle, paste/copy, media transport, and save/save-as.
+Space and CapsLock remain untouched. The sticky right-hand num layer preserves
+ordinary typing for every unmapped key.
 
-## 3. The wire protocol (reverse-engineered, then verified)
+## Rollback
 
-Full contract: `contracts/hid_protocol.md`.
+Pre-change vendor profile, driver config, matching installer, and hashes are in
+the ignored local directory `.rollback/2026-08-12-before-efficiency-tune/`.
+The canonical board map can be reapplied with:
 
-Established by reading three public implementations targeting this exact
-platform (`mastercoder26/Aula-F75-Max-OSX`, `parsiya/f108-pro`,
-`AuRoN89/AULA-F108-PRO-Reverse-Engineering`), then confirmed on the real board.
+```powershell
+.\.venv\Scripts\python.exe -m services.hid.cli remap apply services/hid/data/board_map.json
+```
 
-Key facts:
+The vendor response/sleep settings can be restored to Level 2 / 5 minutes in
+the exact `1.0.0.5` configurator. No firmware rollback is needed because no
+firmware flash occurred.
 
-- **Transport**: 64-byte HID **feature reports** on the `0xFF13` vendor
-  collection, paced **35 ms** apart, each step requiring an ACK readback.
-- **The vendor's own `config.xml` is wrong.** It claims the config interface is
-  `MI_00`. The real one is `MI_03` / `0xFF13`. Two independent implementations
-  found the same thing; live discovery on this machine confirmed it.
-- **Trailer byte order is `AA 55`**, not `55 AA`. One source's code contradicted
-  its own docs; the F75-specific source settled it. Getting this wrong makes the
-  firmware silently ignore commands.
-- **Write-only protocol**: there is no "read current settings" command. The host
-  must track state.
-- Dongle uses a different channel: 32-byte output reports on `0xFF60` with an
-  8-bit additive checksum. Battery is **dongle-only** — no wired battery opcode
-  exists in any implementation.
+## Verification
 
-### Live hardware verification
-
-- **Lighting**: full transaction (begin → init → payload → apply → finalize)
-  sent to the board, Breath/red applied and **visually confirmed**, factory
-  Rolling restored. All ACKs positive. This confirms both the `AA 55` trailer
-  and the `MI_03`/`0xFF13` path on this exact model — a first for this board.
-- **Remap**: 17-key map applied, all ACKs positive.
-
----
-
-## 4. What was built
-
-Services-first layout. Each service has its own contract, tests, and README.
-
-### `services/hid` — Python protocol client
-
-- `protocol.py` — pure builders/parsers, zero I/O (enforced by a test). Every
-  opcode carries a citation comment naming the source repo and file.
-- `device.py` — endpoint discovery (wired config, wired screen, dongle).
-- `client.py` — paced transaction machinery with ACK checking.
-  `HidapiTransport` is the **only** code path that opens hardware.
-- `remap.py` — mapping model resolving human names against the layout truth
-  table.
-- `cli.py` — `status`, `battery`, `light`, `remap show|apply|reset`.
-- `data/f75max_layout.json` — the 80-key ground truth (key_index, HID usage,
-  row#col), parsed deterministically from the vendor app's
-  `layouts/rgb-keyboard.xml`.
-
-**Safety guard**: the protocol layer refuses to remap key_index 96 (Fn). It is
-the hardware layer key; remapping it away would be unrecoverable from software.
-
-**101 gate tests**, stdlib `unittest`, no network, no device, fake clock.
-
-### `services/hostlayer` — AHK v2 layer engine
-
-Gives the board what its firmware cannot: **tap-hold** and **unlimited extra
-layers**, driven entirely from `layers.json`. Same pattern as the existing
-CIDOO runtime, so both engines run side by side.
-
-- `core.ahk` — pure deterministic core (config parsing, mapping resolution,
-  tap-hold state machine).
-- `engine.ahk` — hotkey registration, threshold timers, tray menu
-  (Pause / Reload / Exit), `/validate` CLI mode, single-instance mutex.
-- Shared **tap-hold decision table** (rows TH-01..TH-14) documented in
-  `contracts/hostlayer_config.md` and asserted by both test suites.
-
-**27 mirror tests** in Python (the AHK suite cannot self-execute in CI, so the
-state machine is mirrored and executed); `engine.ahk /validate` passes against
-real AutoHotkey v2.
-
-Honest limitation, documented not hidden: AHK hooks are **global**. Mappings
-apply to every attached keyboard, not just this one. Per-device filtering would
-need Interception/AHI drivers.
-
----
-
-## 5. The board's current configuration
-
-Canonical file: `services/hid/data/board_map.json`. Applied live, all ACKs
-positive. **The board stores this in its own memory, so it types correctly on
-every PC with no software installed.**
-
-### Keycap truth fixes
-
-The keycaps did not match what the keys emitted. Corrected in firmware:
-
-| Physical position | Now sends |
-|---|---|
-| Backtick (top-left) | PrintScreen |
-| Win_L | Alt_L |
-| Alt_L | Win_L |
-| Alt_R | Ctrl_R |
-| PageUp | Keypad `*` |
-| PageDown | Keypad `/` |
-| End | Keypad `-` |
-
-Note: F7/F9 were also mismatched. Rather than remap them, the **keycaps were
-physically swapped**, so no firmware entry exists for them.
-
-### Repurposed F-row
-
-F1, F3, F5–F12 were unused. They now emit **F13–F22** (`0x68`–`0x71`) — codes
-that exist in USB HID but that no physical keyboard produces. This gives them
-unique identities the host layer can bind to anything without ever colliding
-with the laptop keyboard. F2, F4, and Esc are untouched.
-
-| Cap | Emits | Tap | Hold |
-|---|---|---|---|
-| F1 | F13 | Play/Pause | Next track |
-| F3 | F14 | Snip (`Win+Shift+S`) | Clipboard (`Win+V`) |
-| F5 | F15 | Explorer | Run dialog |
-| F6 | F16 | Task view | Show desktop |
-| F7 | F17 | Task Manager | `Win+X` menu |
-| F8 | F18 | Mute | Previous track |
-| F9 | F19 | *toggles the num layer* | |
-| F10 | F20 | Snap left | Snap right |
-| F11 | F21 | Maximize | Minimize |
-| F12 | F22 | Emoji picker | Emoji picker |
-
-Plus, from the host layer: **CapsLock** tap = Esc / hold = Ctrl, and
-**hold-Space** activates a nav layer (ijkl arrows, Home/End/PgUp/PgDn, word
-jumps). The num layer toggle sits on F19 because the RAlt position now sends
-RCtrl.
-
-Everything above is edited in `services/hostlayer/layers.json` and reloaded
-with `Ctrl+Alt+R`. No firmware changes needed for feature changes.
-
-**Full undo of the firmware map**: `remap reset` returns every key to factory.
-
----
-
-## 6. Setting this up on another PC
-
-The board's remap is in its own memory — it types correctly immediately with
-nothing installed. The steps below only add the F13–F22 features and lighting
-control.
-
-1. `git clone <this repo>`
-2. Install [AutoHotkey v2](https://www.autohotkey.com/).
-3. `py -m venv .venv` then `.venv\Scripts\pip install hidapi` (needed only for
-   lighting/remap commands, not for the layer engine).
-4. Copy `services/hostlayer/layers.example.json` to
-   `services/hostlayer/layers.json` and edit to taste.
-5. Run: `AutoHotkey64.exe services\hostlayer\engine.ahk`
-6. Optional, only if the board was ever reset:
-   `py -m services.hid.cli remap apply services/hid/data/board_map.json`
-
----
-
-## 7. Known gaps
-
-- **Wired battery**: impossible. No wired battery opcode exists in any
-  implementation; battery is a dongle-only feature.
-- **Per-key RGB ordering**: the `light_index` map for the 79-key matrix is not
-  verified (the F108's 144-slot table does not transfer directly).
-- **TFT screen upload**: protocol documented (256-byte header, ≤255 frames of
-  128×128) but not implemented; wire pixel format unconfirmed.
-- **Remap is wired-only**: the wireless remap sender is undocumented.
-- **Fn-layer remap**: exposed in the library, not the CLI; the vendor's
-  `fnlayer_disable` flags were not extracted.
-- Macro wire format, polling rate, and knob configuration: no trace in any
-  source.
-
----
-
-## 8. Test status
-
-| Suite | Count | Command |
-|---|---|---|
-| `services/hid` | 101 | `py -m unittest discover -s services/hid/tests -t .` |
-| `services/hostlayer` | 27 | `py -m unittest discover -s services/hostlayer/tests` |
-| AHK config validation | — | `AutoHotkey64.exe engine.ahk /validate layers.json` |
-
-All green as of the final commit.
+- Hostlayer gate: 139 tests plus AHK syntax, config, and hotkey acceptance.
+- HID service: 192 deterministic tests, under two seconds in the repo venv.
+- HID policy eval: 12/12.
+- Device audit: 17 deterministic tests; compatibility eval 9/9, score 1.0.
+- Live audit: exact hardware/configurator/profile match, response level 1,
+  `safe_to_configure=true`, `safe_to_flash_firmware=false`.
+- Live onboard remap: 17-key transaction completed with all required ACKs.
+- Readback limit: the firmware exposes no settings query. ACKs prove the table
+  was accepted, but this session did not capture a physical F-row event.
+  `services/hostlayer/tests/probe.ahk` is included for that manual check.
+- Pre-live safety incident: the exact command
+  `.\.venv\Scripts\python.exe -m services.hid.cli light --mode 1 --transport wired`
+  was accidentally invoked once. It returned exit 0 and applied Static with
+  the raw-command defaults: white, brightness 5, speed 3. No screen, clock, or
+  remap command ran. The later controlled sequence restored Focus Core
+  brightness 2.
+- Custom-image upload and clock sync have now completed live. Default restore
+  timing, displayed-pixel correctness, and direct clock observation still need
+  explicit visual confirmation.
+- First controlled LCD test-pattern attempt: stale-input drain called hidapi
+  `read(64, 0)`. With hidapi 0.15, zero is an unbounded timeout, so it blocked
+  before page 1. The shell timed out and left PIDs 34212 and 33032 alive until
+  the coordinator terminated them. No LCD page output or page ACK was captured;
+  the ACK prefix remained unset after that failed attempt. The regression fix
+  uses at most 32 positive 1 ms polls and rejects nonpositive timeouts at the
+  real transport boundary.
+- Successful controlled LCD retry: all 9 test-pattern pages returned ACK prefix
+  `01 5A 02` for stream SHA256
+  `d4e94333d863cdfdd7f08deae09f5eb8b9d0011375150de8a8b5cded89f342bf`.
+  The watchdog exited 0, and the prefix is now pinned in `protocol.py` for
+  normal upload and restore.
+- First controlled clock-sync attempt: strict begin and `04 28` select ACKs
+  passed, then the board returned `00 01 5A 1A 08 0C 16 17 ...` for the
+  `00 01` data command. That is the sent payload echoed back, with byte 3 equal
+  to the 2026 year offset `0x1A`; the generic validator falsely treated byte 3
+  as a status field, raised `AckError`, and stopped before apply. The clock-data
+  path now requires a byte-for-byte 64-byte payload echo while begin, select,
+  and apply retain strict status ACKs. Malformed and non-echo regressions are
+  covered offline. Clock apply and direct screen observation still needed one
+  controlled live retry at that point.
+- Corrected clock retry: at 2026-08-12 22:28:36 the complete transaction,
+  including strict final apply, succeeded on the exact board. This proves the
+  response semantics and accepted transaction; direct LCD clock observation is
+  not claimed.
+- Named custom-image sequence: Aurora's first upload reached final apply but
+  received an `FF` readback, so the client failed closed and did not report a
+  successful upload. Aurora's retry completed 9/9 pages with pinned prefix
+  `01 5A 02`, stream SHA256
+  `5e9aed91787c759433597eb59c81a5f334143512e2d42129b2f3a0723c92da3f`.
+  Focus Core then completed 9/9 pages with the same prefix, stream SHA256
+  `283c0a20fc56b9f56d6de1287a2a4097cf2de86d949f9edf659f9179ad5aa622`.
+  The runs prove transfer and fail-closed apply handling, not pixel-level visual
+  correctness.
+- Named stock lighting: Aurora was applied live, then Focus Core was applied as
+  the final efficient state: Static `168BFF`, brightness 2.
+- Final runtime hardening: real feature writes now require hidapi integer return
+  `65`, dongle output requires `33`, and LCD output requires `4097`; missing,
+  boolean, negative, zero, short, and overlong results fail closed. LCD cleanup
+  now skips `04 02` after a definite begin-send failure. Once begin sends fully,
+  even a failed begin ACK is treated as possibly active and gets the conservative
+  100 ms plus apply-cleanup attempt. Injected gate tests and policy evals cover
+  all three report kinds and both transaction-state branches; no hardware was
+  opened for this review fix.

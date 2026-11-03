@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "target": {
+    "product": "AULA F75Max",
+    "usb_id": "0C45:800A",
+    "release": "0x0108",
+    "screen": "128x128 RGB565LE"
+  },
+  "restore": {
+    "local_directory": ".local-assets/lcd/stock/frames",
+    "fallback_directory": ".rollback/2026-08-12-before-lcd-lighting/vendor-profile/led/AULA F75 Max Gasket Mechanical Keyboard/20260810183646223",
+    "format": "numbered PNG sequence",
+    "source_size": [128, 128],
+    "frame_count": 251,
+    "candidate_delay_byte": 10,
+    "timing_status": "unverified until live visual confirmation",
+    "source_sequence_sha256": "5fe5ca391c1cdb8a31af882f975d8f8001d059f00a31586fb405a6bc61f1d5c7",
+    "prepared_stream_sha256": "b2ac629ee68ca7fc929a8861d1ed851182e9bfafb2fc7ef9d3f3658fe0d32d3a",
+    "prepared_page_count": 2009,
+    "note": "The installed 0.gif has zero or ambiguous GCE timing. Candidate wire delay byte 10 is not proven until live visual confirmation."
+  },
+  "assets": [
+    {
+      "name": "Focus Core",
+      "local_filename": "focus-core.png",
+      "generated_id": "exec-7773eae8-e76e-42b3-89c8-df5b41bfeb75",
+      "source_sha256": "43151065ba5407e85a7e79ea171b5ffea1af6a4145c597249224670bf7d34674",
+      "source_size": [1254, 1254],
+      "fit": "cover",
+      "prompt_file": "lcd_prompts.md"
+    },
+    {
+      "name": "Aurora",
+      "local_filename": "aurora.png",
+      "generated_id": "exec-a54a651b-05b2-4616-b62b-08919918b388",
+      "source_sha256": "60bd9cb6ffcf0693bb363c5cb51a68354d0ddeebfc05114ba976ee317c426205",
+      "source_size": [1254, 1254],
+      "fit": "cover",
+      "prompt_file": "lcd_prompts.md"
+    }
+  ]
+}

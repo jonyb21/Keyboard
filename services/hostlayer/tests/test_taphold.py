@@ -42,7 +42,7 @@ def engine_cfg(**overrides):
             # builtin switcher
             "F15": {"tap": {"builtin": "altTabTap"}, "hold": {"builtin": "altTabBrowse"}},
             # focus-or-launch pair
-            "F17": {
+            "F18": {
                 "tap": {"focusApp": {"exe": "InDesign (Beta).exe"}},
                 "hold": {"focusApp": {"exe": "Photoshop.exe"}},
             },
@@ -231,11 +231,11 @@ class TestAppAwareHold(unittest.TestCase):
 class TestFocusAppPairs(unittest.TestCase):
     def test_tap_focuses_indesign_hold_focuses_photoshop(self):
         e = new_engine()
-        e.tap("F17")
+        e.tap("F18")
         self.assertEqual(["focus:InDesign (Beta).exe"], e.drain())
-        e.press("F17")
+        e.press("F18")
         e.advance(THRESHOLD)
-        e.release("F17")
+        e.release("F18")
         self.assertEqual(["focus:Photoshop.exe"], e.drain())
 
 

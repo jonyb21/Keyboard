@@ -9,10 +9,11 @@
 ; Nothing here runs at load time except building lookup tables. This file is
 ; #Include-able from anywhere and is the unit the Python mirror suite ports.
 ;
-; Scope note: this engine only ever touches F13-F22 (the codes the board's own
-; firmware emits from its F-row) plus the keys of the F19 sticky num layer.
-; Space, CapsLock and every other key are protected by HL_ProtectedKeys() and
-; the validator refuses to bind them.
+; Scope note: the shipped config only touches F13-F15 and F18-F24 (the
+; collision-free codes the board emits from its F-row) plus the keys of the F21
+; sticky num layer. F16/F17 belong to the global CIDOO runtime. Space, CapsLock
+; and every other key are protected by HL_ProtectedKeys() and the validator
+; refuses to bind them.
 ;
 ; The tap-hold state machine below carries step labels (TH-L1 .. TH-L8) and the
 ; layer resolver carries LR-L1 .. LR-L3. The Python mirror in tests/mirror.py
@@ -67,6 +68,20 @@ HL_ProtectedKeys() {
     m.CaseSense := "Off"
     m["space"] := "Space must stay a plain Space key"
     m["capslock"] := "CapsLock must stay stock"
+    return m
+}
+
+; Keys owned by another runtime. The Cidoo V21 knob runtime claims F16 and F17
+; (HID 0x6B/0x6C) globally and AutoHotkey's hook cannot tell keyboards apart,
+; so binding them would hijack that knob. Refused wherever a key is named.
+HL_ReservedKeys() {
+    static m := ""
+    if (IsObject(m))
+        return m
+    m := Map()
+    m.CaseSense := "Off"
+    m["f16"] := "F16 is owned globally by the Cidoo V21 knob runtime"
+    m["f17"] := "F17 is owned globally by the Cidoo V21 knob runtime"
     return m
 }
 
@@ -149,6 +164,31 @@ HL_KeyHotkey() {
     m["pgup"] := "PgUp", m["pgdn"] := "PgDn"
     m["delete"] := "Delete", m["insert"] := "Insert"
     return m
+}
+
+; Encoder direction -> the key the AULA knob emits for it (canonical names).
+; shortcut: assumed stock codes (knob = volume keys), not yet confirmed on the
+; board; run encoder-probe.ahk and change this table if they differ.
+HL_EncoderSources() {
+    static m := ""
+    if (IsObject(m))
+        return m
+    m := Map("left", "volume_down", "right", "volume_up", "press", "volume_mute")
+    return m
+}
+
+; Every action slot the encoder block accepts. left/right are turns, press and
+; the rest are presses of the knob button, pressLeft/pressRight are turns while
+; the button is held down.
+HL_EncoderTriggers() {
+    return ["left", "right", "press", "doublePress", "triplePress", "hold", "pressLeft", "pressRight"]
+}
+
+HL_EncoderAllowed() {
+    a := ["note", "devices"]
+    for _, t in HL_EncoderTriggers()
+        a.Push(t)
+    return a
 }
 
 HL_Builtins() {
@@ -292,13 +332,13 @@ HL_ValidateAction(a, where, cfg, errs, allowNested := true) {
         errs.Push(where ": action must be an object")
         return
     }
-    HL_CheckUnknownKeys(a, ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "blind", "note"], where, errs)
+    HL_CheckUnknownKeys(a, ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "run", "ahk", "blind", "note"], where, errs)
     kinds := 0
-    for _, k in ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp"]
+    for _, k in ["send", "swallow", "layerToggle", "builtin", "byApp", "focusApp", "run", "ahk"]
         if (a.Has(k))
             kinds += 1
     if (kinds !== 1) {
-        errs.Push(where ": exactly one of send/swallow/layerToggle/builtin/byApp/focusApp is required, found " kinds)
+        errs.Push(where ": exactly one of send/swallow/layerToggle/builtin/byApp/focusApp/run/ahk is required, found " kinds)
         return
     }
     if (a.Has("blind") && !HL_IsBoolish(a["blind"]))
@@ -349,6 +389,30 @@ HL_ValidateAction(a, where, cfg, errs, allowNested := true) {
                 errs.Push(where ".focusApp.args: must be a string")
         }
     }
+    if (a.Has("run")) {
+        r := a["run"]
+        if (!HL_IsMap(r)) {
+            errs.Push(where ".run: must be an object")
+        } else {
+            HL_CheckUnknownKeys(r, ["path", "args", "hide", "note"], where ".run", errs)
+            if (!r.Has("path") || Type(r["path"]) !== "String" || Trim(r["path"]) == "")
+                errs.Push(where ".run.path: required, must be a non-empty absolute path")
+            else if (!HL_LooksAbsolute(r["path"]))
+                errs.Push(where ".run.path: '" r["path"] "' must be an absolute path")
+            else if (InStr(r["path"], '"'))
+                errs.Push(where ".run.path: must not contain a double quote")
+            if (r.Has("args") && Type(r["args"]) !== "String")
+                errs.Push(where ".run.args: must be a string")
+            if (r.Has("hide") && !HL_IsBoolish(r["hide"]))
+                errs.Push(where ".run.hide: must be true or false")
+        }
+    }
+    if (a.Has("ahk")) {
+        if (Type(a["ahk"]) !== "String" || Trim(a["ahk"]) == "")
+            errs.Push(where ".ahk: must be a non-empty AutoHotkey v2 snippet string")
+        else if (StrPut(a["ahk"], "UTF-8") - 1 > 8192)
+            errs.Push(where ".ahk: snippet is over the 8 KB limit")
+    }
     if (a.Has("byApp")) {
         if (!allowNested) {
             errs.Push(where ".byApp: byApp cannot be nested inside byApp")
@@ -378,7 +442,7 @@ HL_ValidateConfig(cfg) {
         errs.Push("root: config must be a JSON object")
         return errs
     }
-    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "appGroups", "bindings", "layers"], "root", errs)
+    HL_CheckUnknownKeys(cfg, ["schemaVersion", "description", "tapHoldMs", "tapWindowMs", "appGroups", "apps", "bindings", "layers", "encoder"], "root", errs)
 
     if (!cfg.Has("schemaVersion") || cfg["schemaVersion"] !== 1)
         errs.Push("root.schemaVersion: must be 1")
@@ -391,6 +455,14 @@ HL_ValidateConfig(cfg) {
             errs.Push("root.tapHoldMs: must be an integer number of milliseconds")
         else if (t < 50 || t > 1000)
             errs.Push("root.tapHoldMs: must be between 50 and 1000 (got " t ")")
+    }
+
+    if (cfg.Has("tapWindowMs")) {
+        t := cfg["tapWindowMs"]
+        if (Type(t) !== "Integer")
+            errs.Push("root.tapWindowMs: must be an integer number of milliseconds")
+        else if (t < 50 || t > 1000)
+            errs.Push("root.tapWindowMs: must be between 50 and 1000 (got " t ")")
     }
 
     ; ---- appGroups -------------------------------------------------------
@@ -448,6 +520,10 @@ HL_ValidateConfig(cfg) {
                     errs.Push("layers." ln ".keys: '" k "' is protected -- " HL_ProtectedKeys()[k])
                     continue
                 }
+                if (HL_ReservedKeys().Has(k)) {
+                    errs.Push("layers." ln ".keys: '" k "' is reserved -- " HL_ReservedKeys()[k])
+                    continue
+                }
                 if (!HL_KeyHotkey().Has(k)) {
                     errs.Push("layers." ln ".keys: '" k "' is not a bindable physical key name")
                     continue
@@ -474,19 +550,104 @@ HL_ValidateConfig(cfg) {
             where := "bindings." k
             if (HL_ProtectedKeys().Has(k))
                 errs.Push(where ": '" k "' is protected -- " HL_ProtectedKeys()[k])
+            else if (HL_ReservedKeys().Has(k))
+                errs.Push(where ": '" k "' is reserved -- " HL_ReservedKeys()[k])
             else if (!HL_KeyHotkey().Has(k))
                 errs.Push(where ": '" k "' is not a bindable physical key name")
             if (!HL_IsMap(B)) {
                 errs.Push(where ": must be an object")
                 continue
             }
-            HL_CheckUnknownKeys(B, ["note", "tap", "hold"], where, errs)
+            HL_CheckUnknownKeys(B, ["note", "tap", "hold", "doubleTap", "tripleTap", "tapHold"], where, errs)
             if (!B.Has("tap"))
                 errs.Push(where ".tap: required")
             else
                 HL_ValidateAction(B["tap"], where ".tap", cfg, errs)
-            if (B.Has("hold"))
-                HL_ValidateAction(B["hold"], where ".hold", cfg, errs)
+            for _, trig in ["hold", "doubleTap", "tripleTap", "tapHold"]
+                if (B.Has(trig))
+                    HL_ValidateAction(B[trig], where "." trig, cfg, errs)
+        }
+    }
+
+    ; ---- apps (per-app profiles; merged into byApp at compile time) ------
+    if (cfg.Has("apps")) {
+        if (!HL_IsMap(cfg["apps"])) {
+            errs.Push("root.apps: must be an object")
+        } else {
+            for _, g in HL_KeysOf(cfg["apps"]) {
+                P := cfg["apps"][g]
+                where := "apps." g
+                if (!cfg.Has("appGroups") || !HL_IsMap(cfg["appGroups"]) || !cfg["appGroups"].Has(g))
+                    errs.Push(where ": '" g "' is not a declared appGroup")
+                if (!HL_IsMap(P)) {
+                    errs.Push(where ": must be an object")
+                    continue
+                }
+                HL_CheckUnknownKeys(P, ["note", "bindings", "encoder"], where, errs)
+                if (P.Has("bindings")) {
+                    if (!HL_IsMap(P["bindings"])) {
+                        errs.Push(where ".bindings: must be an object")
+                    } else {
+                        for _, k in HL_KeysOf(P["bindings"]) {
+                            kw := where ".bindings." k
+                            Bo := P["bindings"][k]
+                            if (HL_ProtectedKeys().Has(k))
+                                errs.Push(kw ": '" k "' is protected -- " HL_ProtectedKeys()[k])
+                            else if (HL_ReservedKeys().Has(k))
+                                errs.Push(kw ": '" k "' is reserved -- " HL_ReservedKeys()[k])
+                            else if (!HL_KeyHotkey().Has(k))
+                                errs.Push(kw ": '" k "' is not a bindable physical key name")
+                            else if (!RegExMatch(k, "i)^F(1[3-9]|2[0-4])$") && !(cfg.Has("bindings") && HL_IsMap(cfg["bindings"]) && HL_FindKey(cfg["bindings"], k) != ""))
+                                errs.Push(kw ": '" k "' is not bound globally; only F13-F24 may be profile-only")
+                            if (!HL_IsMap(Bo)) {
+                                errs.Push(kw ": must be an object")
+                                continue
+                            }
+                            HL_CheckUnknownKeys(Bo, ["note", "tap", "hold", "doubleTap", "tripleTap", "tapHold"], kw, errs)
+                            if (Bo.Count == 0 || (Bo.Count == 1 && Bo.Has("note")))
+                                errs.Push(kw ": must override at least one of tap/hold/doubleTap/tripleTap/tapHold")
+                            for _, trig in ["tap", "hold", "doubleTap", "tripleTap", "tapHold"]
+                                if (Bo.Has(trig))
+                                    HL_ValidateAction(Bo[trig], kw "." trig, cfg, errs, false)
+                        }
+                    }
+                }
+                if (P.Has("encoder")) {
+                    if (!HL_IsMap(P["encoder"])) {
+                        errs.Push(where ".encoder: must be an object")
+                    } else {
+                        if (!cfg.Has("encoder"))
+                            errs.Push(where ".encoder: needs a top-level encoder block (it supplies the devices)")
+                        encAllowed := ["note"]
+                        for _, t in HL_EncoderTriggers()
+                            encAllowed.Push(t)
+                        HL_CheckUnknownKeys(P["encoder"], encAllowed, where ".encoder", errs)
+                        for _, t in HL_EncoderTriggers()
+                            if (P["encoder"].Has(t))
+                                HL_ValidateAction(P["encoder"][t], where ".encoder." t, cfg, errs, false)
+                    }
+                }
+            }
+        }
+    }
+
+    ; ---- encoder ---------------------------------------------------------
+    if (cfg.Has("encoder")) {
+        E := cfg["encoder"]
+        if (!HL_IsMap(E)) {
+            errs.Push("root.encoder: must be an object")
+        } else {
+            HL_CheckUnknownKeys(E, HL_EncoderAllowed(), "encoder", errs)
+            if (!E.Has("devices") || !HL_IsArray(E["devices"]) || E["devices"].Length == 0) {
+                errs.Push("encoder.devices: required, a non-empty array like VID_0C45&PID_800A")
+            } else {
+                for _, d in E["devices"]
+                    if (Type(d) !== "String" || !RegExMatch(d, "i)^VID_[0-9A-F]{4}&PID_[0-9A-F]{4}$"))
+                        errs.Push("encoder.devices: every entry must look like VID_0C45&PID_800A")
+            }
+            for _, dir in HL_EncoderTriggers()
+                if (E.Has(dir))
+                    HL_ValidateAction(E[dir], "encoder." dir, cfg, errs)
         }
     }
 
@@ -519,6 +680,15 @@ HL_CompileAction(a) {
         out["launch"] := f.Get("launch", "")
         out["windowClass"] := f.Get("windowClass", "")
         out["args"] := f.Get("args", "")
+    } else if (a.Has("run")) {
+        out["kind"] := "run"
+        r := a["run"]
+        out["path"] := Trim(r["path"])
+        out["args"] := r.Get("args", "")
+        out["hide"] := r.Has("hide") ? (r["hide"] ? 1 : 0) : 0
+    } else if (a.Has("ahk")) {
+        out["kind"] := "ahk"
+        out["code"] := a["ahk"]
     } else if (a.Has("byApp")) {
         out["kind"] := "byApp"
         br := Map()
@@ -529,9 +699,144 @@ HL_CompileAction(a) {
     return out
 }
 
+; Compiled action for m[name], or "" when absent.
+HL_CompileOpt(m, name) {
+    return m.Has(name) ? HL_CompileAction(m[name]) : ""
+}
+
+; Fills the trigger fields of a binding entry. multi means a tap cannot fire on
+; key-down because a later tap, or a tap-then-hold, may still follow; a plain
+; tap/hold binding keeps the original zero-latency path.
+HL_FillTriggers(entry, tap, hold, dbl, trp, th, forceMulti) {
+    entry["tap"] := tap
+    entry["hasHold"] := IsObject(hold) ? 1 : 0
+    entry["hold"] := hold
+    entry["doubleTap"] := dbl
+    entry["tripleTap"] := trp
+    entry["tapHold"] := th
+    entry["multi"] := (forceMulti || IsObject(dbl) || IsObject(trp) || IsObject(th)) ? 1 : 0
+    entry["maxTaps"] := IsObject(trp) ? 3 : (IsObject(dbl) ? 2 : 1)
+}
+
+; ---- per-app profiles ------------------------------------------------------
+; "apps" is sugar. Each profile override is folded into the matching global
+; action as a byApp branch (global action becomes the default branch), so the
+; runtime keeps its single foreground-exe lookup. App override beats global.
+
+; Existing key in m matching name case-insensitively, else "".
+HL_FindKey(m, name) {
+    for k, _ in m
+        if (StrLower(k) == StrLower(name))
+            return k
+    return ""
+}
+
+; One trigger: base is the global action ("" when absent), ov the app's.
+HL_MergeApp(base, g, ov, dflt) {
+    if (!IsObject(base))
+        base := dflt
+    if (base.Has("byApp")) {
+        nb := Map()
+        for k, v in base["byApp"]
+            nb[k] := v
+        nb[g] := ov
+        return Map("byApp", nb)
+    }
+    return Map("byApp", Map(g, ov, "default", base))
+}
+
+HL_ExpandApps(cfg) {
+    if (!cfg.Has("apps"))
+        return cfg
+    out := Map()
+    for k, v in cfg
+        out[k] := v
+    bind := Map()
+    for k, v in cfg["bindings"]
+        bind[k] := v
+    enc := Map()
+    hasEnc := cfg.Has("encoder")
+    if (hasEnc)
+        for k, v in cfg["encoder"]
+            enc[k] := v
+    swallow := Map("swallow", true)
+    for g, P in cfg["apps"] {
+        if (P.Has("bindings"))
+            for k, ov in P["bindings"] {
+                real := HL_FindKey(bind, k)
+                if (real == "")
+                    real := k
+                nb := Map()
+                if (bind.Has(real))
+                    for t, x in bind[real]
+                        nb[t] := x
+                ; A trigger new to this key falls through to the global tap elsewhere.
+                gk := HL_FindKey(cfg["bindings"], k)
+                dflt := (gk != "" && cfg["bindings"][gk].Has("tap")) ? cfg["bindings"][gk]["tap"] : swallow
+                for _, t in ["tap", "hold", "doubleTap", "tripleTap", "tapHold"]
+                    if (ov.Has(t))
+                        nb[t] := HL_MergeApp(nb.Has(t) ? nb[t] : "", g, ov[t], dflt)
+                if (!nb.Has("tap"))
+                    nb["tap"] := swallow
+                bind[real] := nb
+            }
+        if (hasEnc && P.Has("encoder"))
+            for t, ov in P["encoder"] {
+                if (t == "note")
+                    continue
+                ; An absent left/right/press must keep its stock key outside the app.
+                dflt := HL_EncoderSources().Has(t) ? Map("send", HL_EncoderSources()[t]) : swallow
+                enc[t] := HL_MergeApp(enc.Has(t) ? enc[t] : "", g, ov, dflt)
+            }
+    }
+    out["bindings"] := bind
+    if (hasEnc)
+        out["encoder"] := enc
+    return out
+}
+
+; ---- run / ahk actions -----------------------------------------------------
+
+; Command lines to try, in order, for a compiled "run" action. Pure: the
+; running AutoHotkey exe and %ComSpec% are passed in. Path is always quoted;
+; args are appended as given.
+HL_RunCommands(a, ahkPath, comSpec) {
+    p := a["path"]
+    q := '"' p '"'
+    ar := Trim(a["args"])
+    tail := (ar !== "") ? (" " ar) : ""
+    ext := ""
+    if (RegExMatch(p, "i)\.([^.\\/]+)$", &m))
+        ext := StrLower(m[1])
+    if (ext == "ps1")
+        return ['powershell.exe -NoProfile -ExecutionPolicy Bypass -File ' q tail]
+    if (ext == "py")
+        return ['py.exe ' q tail, 'python.exe ' q tail]
+    if (ext == "bat" || ext == "cmd")
+        return ['"' comSpec '" /c "' q tail '"']
+    if (ext == "ahk")
+        return ['"' ahkPath '" ' q tail]
+    return [q tail]
+}
+
+; 64-bit FNV-1a over UTF-16 code units, as 16 hex digits.
+HL_SnippetHash(s) {
+    h := -3750763034362895579  ; 0xCBF29CE484222325 as signed 64-bit
+    Loop Parse, s {
+        h := (h ^ Ord(A_LoopField)) * 1099511628211
+    }
+    return Format("{:016x}", h)
+}
+
+HL_SnippetSource(code) {
+    return "#Requires AutoHotkey v2.0`n" code "`n"
+}
+
 HL_CompileConfig(cfg) {
+    cfg := HL_ExpandApps(cfg)
     c := Map()
     c["tapHoldMs"] := cfg["tapHoldMs"]
+    c["tapWindowMs"] := cfg.Get("tapWindowMs", 250)
 
     exeIndex := Map()
     exeIndex.CaseSense := "Off"
@@ -559,9 +864,7 @@ HL_CompileConfig(cfg) {
         entry := Map()
         entry["key"] := k
         entry["hk"] := HL_KeyHotkey()[k]
-        entry["tap"] := HL_CompileAction(src["tap"])
-        entry["hasHold"] := src.Has("hold") ? 1 : 0
-        entry["hold"] := src.Has("hold") ? HL_CompileAction(src["hold"]) : ""
+        HL_FillTriggers(entry, HL_CompileAction(src["tap"]), HL_CompileOpt(src, "hold"), HL_CompileOpt(src, "doubleTap"), HL_CompileOpt(src, "tripleTap"), HL_CompileOpt(src, "tapHold"), false)
         entry["note"] := src.Get("note", "")
         bindings[k] := entry
     }
@@ -587,7 +890,48 @@ HL_CompileConfig(cfg) {
         toggles.Push(ln)
     c["toggleLayers"] := HL_SortStrings(toggles)
 
+    ; Encoder: only directions remapped away from the knob's own key get an
+    ; entry, so a stock (or absent) encoder block registers nothing at all.
+    ; Press mode: any multi-press, hold or turn-while-held slot makes the button
+    ; a tap-hold key of its own (a binding named "press", driven by HL_TapHold)
+    ; instead of a single-shot remap. A direction with a turn-while-held action
+    ; is hooked even when its own action is stock; "action" is then "" and the
+    ; engine passes the original key through.
+    enc := Map()
+    press := ""
+    if (cfg.Has("encoder")) {
+        E := cfg["encoder"]
+        pressMode := false
+        for _, t in ["doublePress", "triplePress", "hold", "pressLeft", "pressRight"]
+            if (E.Has(t))
+                pressMode := true
+        for _, dir in ["left", "right", "press"] {
+            if (dir == "press" && pressMode)
+                continue
+            src := HL_EncoderSources()[dir]
+            act := E.Has(dir) ? HL_CompileAction(E[dir]) : ""
+            stock := (!IsObject(act)) || (act["kind"] == "send" && act["send"] == HL_KeySend()[src])
+            pAct := (dir == "left" && E.Has("pressLeft")) ? HL_CompileAction(E["pressLeft"]) : ((dir == "right" && E.Has("pressRight")) ? HL_CompileAction(E["pressRight"]) : "")
+            if (stock && !IsObject(pAct))
+                continue
+            enc[dir] := Map("hk", HL_KeySendName(src), "src", HL_KeySend()[src], "action", stock ? "" : act, "pressAction", pAct)
+        }
+        if (pressMode) {
+            src := HL_EncoderSources()["press"]
+            tap := E.Has("press") ? HL_CompileAction(E["press"]) : HL_CompileAction(Map("send", "Volume_Mute"))
+            ent := Map("key", "press", "hk", HL_KeySendName(src))
+            HL_FillTriggers(ent, tap, HL_CompileOpt(E, "hold"), HL_CompileOpt(E, "doublePress"), HL_CompileOpt(E, "triplePress"), "", true)
+            press := Map("hk", HL_KeySendName(src), "src", HL_KeySend()[src], "entry", ent)
+        }
+    }
+    c["encoder"] := Map("devices", cfg.Has("encoder") ? cfg["encoder"]["devices"] : [], "dirs", enc, "press", press)
+
     return c
+}
+
+; "{Volume_Up}" -> "Volume_Up": the hotkey name for a KeySend token.
+HL_KeySendName(key) {
+    return SubStr(HL_KeySend()[key], 2, -1)
 }
 
 ; Read + parse + validate + compile. Throws an Error whose .Extra holds the
@@ -605,6 +949,50 @@ HL_LoadConfigFile(path) {
         throw err
     }
     return HL_CompileConfig(cfg)
+}
+
+; ===========================================================================
+; Config path + change watching
+; ===========================================================================
+
+; The app writes %APPDATA%\aula-desktop\hostlayer.json; when it exists it wins,
+; otherwise the hand-edited layers.json next to the script is used.
+HL_ResolveConfigPath(appData, scriptDir) {
+    if (appData !== "") {
+        p := appData "\aula-desktop\hostlayer.json"
+        if (FileExist(p))
+            return p
+    }
+    return scriptDir "\layers.json"
+}
+
+; Debounced change detector for the polling reload. sig is any string that
+; changes when the config does (path + mtime + size). A change must be seen on
+; two consecutive polls before Step returns true, so a file still being written
+; is never read half done.
+class HL_ConfigWatch {
+    __New(sig) {
+        this.applied := sig
+        this.seen := sig
+    }
+
+    Mark(sig) {
+        this.applied := sig
+        this.seen := sig
+    }
+
+    Step(sig) {
+        if (sig == this.applied) {
+            this.seen := sig
+            return false
+        }
+        if (sig == this.seen) {
+            this.applied := sig
+            return true
+        }
+        this.seen := sig
+        return false
+    }
 }
 
 ; ===========================================================================
@@ -633,22 +1021,32 @@ HL_ResolveApp(action, activeExe, exeIndex) {
 ;         "pending"   -> down, threshold not yet elapsed, undecided
 ;         "held"      -> hold action already fired
 ;         "downfired" -> tap-only key already fired on key-down
+;         "waiting"   -> multi-tap key released, waiting tapWindowMs for more taps
+;         "consumed"  -> down, but a turn-while-held already used this press
+;
+; A binding with doubleTap, tripleTap or tapHold is "multi": its tap cannot fire
+; on key-down or even on key-up, because a further tap may follow. It fires when
+; tapWindowMs passes with no new press, or at once when no further tap is
+; possible. A binding without them keeps the original paths unchanged.
 ;
 ; Emitted events (the engine executes them; core never touches the keyboard):
-;   Map("type","action",     "action",<compiled>, "phase","tap"|"hold")
+;   Map("type","action",     "action",<compiled>, "phase","tap"|"hold"|"doubleTap"|"tripleTap"|"tapHold")
 ;   Map("type","builtin",    "name",<str>, "phase","start"|"repeat"|"end")
-;   Map("type","armTimer",   "key",<k>, "ms",<n>)
+;   Map("type","armTimer",   "key",<k>, "ms",<n>)      hold timer
 ;   Map("type","cancelTimer","key",<k>)
+;   Map("type","armWait",    "key",<k>, "ms",<n>)      multi-tap window timer
+;   Map("type","cancelWait", "key",<k>)
 ; ===========================================================================
 
 class HL_TapHold {
     __New(compiled) {
         this.cfg := compiled
         this.tapHoldMs := compiled["tapHoldMs"]
+        this.tapWindowMs := compiled.Has("tapWindowMs") ? compiled["tapWindowMs"] : 250
         this.state := Map()
         this.state.CaseSense := "Off"
         for k, _ in compiled["bindings"]
-            this.state[k] := Map("phase", "idle", "downAt", 0)
+            this.state[k] := Map("phase", "idle", "downAt", 0, "count", 0, "holdAction", "")
     }
 
     Phase(key) {
@@ -659,6 +1057,8 @@ class HL_TapHold {
         for k, _ in this.state {
             this.state[k]["phase"] := "idle"
             this.state[k]["downAt"] := 0
+            this.state[k]["count"] := 0
+            this.state[k]["holdAction"] := ""
         }
     }
 
@@ -666,7 +1066,62 @@ class HL_TapHold {
         return (action !== "" && action["kind"] == "builtin" && action["builtin"] == "altTabBrowse")
     }
 
-    ; TH-L1 .. TH-L4
+    ; The hold action that press number n (1-based) can become, or "".
+    _HoldFor(b, n) {
+        if (n == 1)
+            return b["hold"]
+        if (n == 2)
+            return b["tapHold"]
+        return ""
+    }
+
+    ; The action for n completed taps. A missing doubleTap falls back to tap.
+    _TapFor(b, n) {
+        if (n >= 3 && b["tripleTap"] !== "")
+            return b["tripleTap"]
+        if (n >= 2 && b["doubleTap"] !== "")
+            return b["doubleTap"]
+        return b["tap"]
+    }
+
+    _TapPhase(b, n) {
+        if (n >= 3 && b["tripleTap"] !== "")
+            return "tripleTap"
+        if (n >= 2 && b["doubleTap"] !== "")
+            return "doubleTap"
+        return "tap"
+    }
+
+    ; True when, after n taps, another tap or a tap-then-hold can still follow.
+    _WaitMore(b, n) {
+        return (n < b["maxTaps"] || (n == 1 && b["tapHold"] !== ""))
+    }
+
+    ; True while the button is physically down (turn-while-held checks this).
+    IsDown(key) {
+        p := this.state[key]["phase"]
+        return (p == "pending" || p == "held" || p == "consumed" || p == "downfired")
+    }
+
+    ; TH-L9  A turn happened while the key was down: this press belongs to the
+    ;        turn, so it must neither tap nor hold on release.
+    Consume(key) {
+        ev := []
+        st := this.state[key]
+        if (st["phase"] == "pending") {
+            ev.Push(Map("type", "cancelTimer", "key", key))
+        } else if (st["phase"] == "held") {
+            if (this._IsBrowse(st["holdAction"]))
+                ev.Push(Map("type", "builtin", "name", "altTabBrowse", "phase", "end"))
+        } else {
+            return ev
+        }
+        st["phase"] := "consumed"
+        st["count"] := 0
+        return ev
+    }
+
+    ; TH-L1 .. TH-L4, TH-L10
     OnDown(key, now) {
         ev := []
         b := this.cfg["bindings"][key]
@@ -675,30 +1130,43 @@ class HL_TapHold {
         ; TH-L1  Already resolved as a hold. The only thing a further key-down
         ;        may do is advance a hold-to-browse switcher. Never re-fire tap.
         if (st["phase"] == "held") {
-            if (this._IsBrowse(b["hold"]))
+            if (this._IsBrowse(st["holdAction"]))
                 ev.Push(Map("type", "builtin", "name", "altTabBrowse", "phase", "repeat"))
             return ev
         }
 
-        ; TH-L2  Autorepeat arriving while still undecided, or after a tap-only
-        ;        key already fired. Swallow it: correctness rule 2, no
-        ;        autorepeat of the tap action.
-        if (st["phase"] == "pending" || st["phase"] == "downfired")
+        ; TH-L2  Autorepeat arriving while still undecided, after a tap-only
+        ;        key already fired, or after a turn consumed the press. Swallow
+        ;        it: correctness rule 2, no autorepeat of the tap action.
+        if (st["phase"] == "pending" || st["phase"] == "downfired" || st["phase"] == "consumed")
             return ev
+
+        ; TH-L10 A new press inside the tap window: the pending single/double
+        ;        tap is not final yet, so stop the window timer and count on.
+        if (st["phase"] == "waiting") {
+            ev.Push(Map("type", "cancelWait", "key", key))
+            st["downAt"] := now
+            st["phase"] := "pending"
+            if (this._HoldFor(b, st["count"] + 1) !== "")
+                ev.Push(Map("type", "armTimer", "key", key, "ms", this.tapHoldMs))
+            return ev
+        }
 
         ; TH-L3  Fresh press of a tap-only key: fire immediately on key-down,
         ;        no discrimination delay at all.
         st["downAt"] := now
-        if (!b["hasHold"]) {
+        st["count"] := 0
+        if (!b["hasHold"] && !b["multi"]) {
             st["phase"] := "downfired"
             ev.Push(Map("type", "action", "action", b["tap"], "phase", "tap"))
             return ev
         }
 
         ; TH-L4  Fresh press of a tap-hold key: nothing is emitted yet, arm the
-        ;        discriminator.
+        ;        discriminator (only if a hold is possible for this press).
         st["phase"] := "pending"
-        ev.Push(Map("type", "armTimer", "key", key, "ms", this.tapHoldMs))
+        if (this._HoldFor(b, 1) !== "")
+            ev.Push(Map("type", "armTimer", "key", key, "ms", this.tapHoldMs))
         return ev
     }
 
@@ -713,16 +1181,21 @@ class HL_TapHold {
         if (st["phase"] !== "pending")
             return ev
 
-        ; TH-L6  Threshold crossed: the hold fires exactly once.
+        ; TH-L6  Threshold crossed: the hold fires exactly once. The hold is
+        ;        tapHold when this is the second press of a tap-then-hold.
         st["phase"] := "held"
-        if (this._IsBrowse(b["hold"]))
+        h := this._HoldFor(b, st["count"] + 1)
+        st["holdAction"] := h
+        ph := (st["count"] == 0) ? "hold" : "tapHold"
+        st["count"] := 0
+        if (this._IsBrowse(h))
             ev.Push(Map("type", "builtin", "name", "altTabBrowse", "phase", "start"))
         else
-            ev.Push(Map("type", "action", "action", b["hold"], "phase", "hold"))
+            ev.Push(Map("type", "action", "action", h, "phase", ph))
         return ev
     }
 
-    ; TH-L7 .. TH-L8
+    ; TH-L7 .. TH-L8, TH-L11
     OnUp(key, now) {
         ev := []
         b := this.cfg["bindings"][key]
@@ -732,14 +1205,43 @@ class HL_TapHold {
         ;        timer first so the hold can never also fire.
         if (st["phase"] == "pending") {
             ev.Push(Map("type", "cancelTimer", "key", key))
-            ev.Push(Map("type", "action", "action", b["tap"], "phase", "tap"))
+            if (!b["multi"]) {
+                ev.Push(Map("type", "action", "action", b["tap"], "phase", "tap"))
+            } else {
+                ; TH-L11 Multi-tap: count it. If another tap can still follow,
+                ;        open the window; otherwise this tap count is final.
+                n := st["count"] + 1
+                if (this._WaitMore(b, n)) {
+                    st["count"] := n
+                    st["phase"] := "waiting"
+                    ev.Push(Map("type", "armWait", "key", key, "ms", this.tapWindowMs))
+                    return ev
+                }
+                ev.Push(Map("type", "action", "action", this._TapFor(b, n), "phase", this._TapPhase(b, n)))
+            }
         } else if (st["phase"] == "held") {
             ; TH-L8  Hold already fired. Only a browse-style hold has a release
             ;        phase (it must let go of Alt to commit the selection).
-            if (this._IsBrowse(b["hold"]))
+            if (this._IsBrowse(st["holdAction"]))
                 ev.Push(Map("type", "builtin", "name", "altTabBrowse", "phase", "end"))
         }
         st["phase"] := "idle"
+        st["count"] := 0
+        st["holdAction"] := ""
+        return ev
+    }
+
+    ; TH-L12 The tap window closed with no further press: the count is final.
+    OnWaitTimer(key, now) {
+        ev := []
+        b := this.cfg["bindings"][key]
+        st := this.state[key]
+        if (st["phase"] !== "waiting")
+            return ev
+        n := st["count"]
+        st["phase"] := "idle"
+        st["count"] := 0
+        ev.Push(Map("type", "action", "action", this._TapFor(b, n), "phase", this._TapPhase(b, n)))
         return ev
     }
 }

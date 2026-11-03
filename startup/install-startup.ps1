@@ -4,7 +4,8 @@
 
 .DESCRIPTION
     Creates a shortcut in the current user's Startup folder that launches
-    services\hostlayer\engine.ahk with AutoHotkey v2.
+    services\hostlayer\engine.ahk with AutoHotkey v2, hidden so logon does not
+    flash a terminal window.
 
     A shortcut is used rather than a Run-key entry or a scheduled task because
     it needs no admin rights, survives on a managed machine, and the user can
@@ -97,8 +98,9 @@ $sc = $shell.CreateShortcut($linkPath)
 $sc.TargetPath       = $AutoHotkey
 $sc.Arguments        = $targetArgs
 $sc.WorkingDirectory = $service
-$sc.Description      = "AULA F75 Max host layer (F13-F22 bindings and the num layer)"
+$sc.Description      = "AULA F75 Max host layer (F13-F15/F18-F24 bindings and the num layer)"
 $sc.IconLocation     = "$AutoHotkey,0"
+$sc.WindowStyle      = 7
 $sc.Save()
 
 Write-Host ""

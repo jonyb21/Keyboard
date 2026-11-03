@@ -1,4 +1,4 @@
-"""Gate tests: the F19 sticky num layer.
+"""Gate tests: the F21 sticky num layer.
 
 Revision 2 removed the momentary nav layer and every CapsLock/Space behaviour,
 so the only layer left is the sticky num grid. The load-bearing property is
@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mirror  # noqa: E402
 
 THRESHOLD = 200
+LAYER_TOGGLE_KEY = "F21"
 
 # The shipped grid. Kept here as literal truth so a silent edit to layers.json
 # fails the suite instead of quietly changing what the keyboard types.
@@ -65,39 +66,39 @@ class TestStickyToggle(unittest.TestCase):
         e = engine()
         self.assertEqual({}, e.active_toggles)
 
-    def test_f19_turns_it_on(self):
+    def test_f21_turns_it_on(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         self.assertIn("num", e.active_toggles)
 
-    def test_f19_turns_it_off_again(self):
+    def test_f21_turns_it_off_again(self):
         e = engine()
-        e.tap("F19")
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
+        e.tap(LAYER_TOGGLE_KEY)
         self.assertNotIn("num", e.active_toggles)
 
     def test_it_stays_on_across_other_keys(self):
-        """Sticky, not momentary: releasing F19 must not drop the layer."""
+        """Sticky, not momentary: releasing F21 must not drop the layer."""
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for _ in range(5):
             e.type_key("u")
         self.assertEqual(["send:{7}"] * 5, e.drain())
         self.assertIn("num", e.active_toggles)
 
-    def test_toggle_survives_a_long_hold_of_f19(self):
+    def test_toggle_survives_a_long_hold_of_f21(self):
         e = engine()
-        e.press("F19")
+        e.press(LAYER_TOGGLE_KEY)
         e.advance(2000)
-        e.release("F19")
+        e.release(LAYER_TOGGLE_KEY)
         self.assertEqual(["layer:num=on"], e.drain())
 
 
 class TestKeysWhileLayerOn(unittest.TestCase):
     def test_every_grid_key_emits_its_digit(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key, expected in NUM_GRID.items():
             e.type_key(key)
@@ -106,7 +107,7 @@ class TestKeysWhileLayerOn(unittest.TestCase):
 
     def test_home_row_is_456(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in ("j", "k", "l"):
             e.type_key(key)
@@ -114,7 +115,7 @@ class TestKeysWhileLayerOn(unittest.TestCase):
 
     def test_top_row_is_789(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in ("u", "i", "o"):
             e.type_key(key)
@@ -122,7 +123,7 @@ class TestKeysWhileLayerOn(unittest.TestCase):
 
     def test_bottom_row_is_123(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in ("m", "comma", "period"):
             e.type_key(key)
@@ -130,21 +131,21 @@ class TestKeysWhileLayerOn(unittest.TestCase):
 
     def test_zero_sits_on_n(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         e.type_key("n")
         self.assertEqual(["send:{0}"], e.drain())
 
     def test_decimal_point_sits_on_slash(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         e.type_key("slash")
         self.assertEqual(["send:{.}"], e.drain())
 
     def test_enter_sits_on_semicolon(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         e.type_key("semicolon")
         self.assertEqual(["send:{Enter}"], e.drain())
@@ -152,7 +153,7 @@ class TestKeysWhileLayerOn(unittest.TestCase):
     def test_typing_a_number_works_end_to_end(self):
         """1234.5 then Enter, the whole point of the layer."""
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in ("m", "comma", "period", "j", "slash", "k", "semicolon"):
             e.type_key(key)
@@ -173,13 +174,13 @@ class TestSpaceIsNeverTouched(unittest.TestCase):
 
     def test_space_is_not_intercepted_while_the_layer_is_on(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         self.assertFalse(e.layer_ctx("space"))
 
     def test_space_passes_straight_through_while_the_layer_is_on(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         e.type_key("space")
         self.assertEqual(["passthru:space"], e.drain())
@@ -215,7 +216,7 @@ class TestKeysWhileLayerOff(unittest.TestCase):
 
     def test_unmapped_keys_pass_through_even_when_on(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in ("a", "z", "q", "5"):
             e.type_key(key)
@@ -225,7 +226,7 @@ class TestKeysWhileLayerOff(unittest.TestCase):
 
     def test_layer_ctx_is_true_only_for_grid_keys_when_on(self):
         e = engine()
-        e.tap("F19")
+        e.tap(LAYER_TOGGLE_KEY)
         e.drain()
         for key in NUM_GRID:
             with self.subTest(key=key, on=True):
@@ -279,12 +280,15 @@ class TestLayerPrecedence(unittest.TestCase):
 
 class TestNoFRowLeakage(unittest.TestCase):
     """Correctness rule 1. The prior build leaked seven raw F1x presses to
-    apps; every F13-F22 code must be claimed by a hotkey that swallows it."""
+    apps; every configured board token must be claimed and swallowed."""
 
-    def test_every_f_row_code_is_bound(self):
+    def test_every_collision_free_board_token_is_bound(self):
         c = shipped()
-        for n in range(13, 23):
-            self.assertIn("f%d" % n, c["bindings"])
+        expected = {
+            "f13", "f14", "f15", "f18", "f19",
+            "f20", "f21", "f22", "f23", "f24",
+        }
+        self.assertEqual(expected, set(c["bindings"]))
 
     def test_no_binding_re_emits_its_own_f_key(self):
         c = shipped()

@@ -15,6 +15,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mirror  # noqa: E402
 
 
+SHIPPED_BINDING_TOKENS = {
+    "f13", "f14", "f15", "f18", "f19",
+    "f20", "f21", "f22", "f23", "f24",
+}
+CIDOO_OWNED_BINDING_TOKENS = {"f16", "f17"}
+
+
 def base_cfg():
     """A minimal config that validates clean. Tests mutate copies of it."""
     return {
@@ -58,17 +65,68 @@ class TestShippedConfigs(unittest.TestCase):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
         self.assertEqual(200, c["tapHoldMs"])
 
-    def test_shipped_binds_exactly_f13_to_f22(self):
+    def test_shipped_binding_tokens_match_board_map(self):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
-        self.assertEqual(
-            sorted("f%d" % n for n in range(13, 23)), sorted(c["bindings"].keys())
-        )
+        self.assertEqual(SHIPPED_BINDING_TOKENS, set(c["bindings"]))
+
+    def test_shipped_physical_action_order_is_preserved(self):
+        """Moving host tokens must not move the intent attached to each cap."""
+        c = mirror.load_config_file(mirror.LAYERS_JSON)
+
+        def label(action):
+            if action == "":
+                return None
+            kind = action["kind"]
+            if kind == "send":
+                return kind, action["chord"]
+            if kind == "builtin":
+                return kind, action["builtin"]
+            if kind == "layerToggle":
+                return kind, action["layer"]
+            if kind == "focusApp":
+                return kind, action["exe"]
+            if kind == "byApp":
+                branches = tuple(
+                    sorted((name, branch["chord"]) for name, branch in action["branches"].items())
+                )
+                return kind, branches
+            self.fail("unhandled action kind: " + kind)
+
+        actual = {
+            key: (label(binding["tap"]), label(binding["hold"]))
+            for key, binding in c["bindings"].items()
+        }
+        expected = {
+            "f13": (("send", "Ctrl+Z"), ("byApp", (
+                ("default", "Ctrl+Shift+Z"), ("excel", "Ctrl+Y"),
+                ("solidworks", "Ctrl+Y"),
+            ))),
+            "f14": (("focusApp", "chrome.exe"), ("focusApp", "OUTLOOK.EXE")),
+            "f15": (("builtin", "altTabTap"), ("builtin", "altTabBrowse")),
+            "f18": (("focusApp", "SLDWORKS.exe"), ("focusApp", "explorer.exe")),
+            "f19": (("focusApp", "claude.exe"), ("focusApp", "mstsc.exe")),
+            "f20": (("send", "Volume_Mute"), ("send", "Media_Prev")),
+            "f21": (("layerToggle", "num"), None),
+            "f22": (("send", "Ctrl+V"), ("send", "Ctrl+C")),
+            "f23": (("send", "Media_Play_Pause"), ("send", "Media_Next")),
+            "f24": (("send", "Ctrl+S"), ("send", "Ctrl+Shift+S")),
+        }
+        self.assertEqual(expected, actual)
+
+    def test_cidoo_owned_f16_f17_are_absent_from_shipped_configs(self):
+        for path in (mirror.LAYERS_JSON, mirror.LAYERS_EXAMPLE_JSON):
+            with self.subTest(path=path):
+                c = mirror.load_config_file(path)
+                self.assertTrue(
+                    CIDOO_OWNED_BINDING_TOKENS.isdisjoint(c["bindings"]),
+                    "CIDOO owns F16/F17 globally",
+                )
 
     def test_shipped_touches_no_key_outside_the_f_row_and_num_layer(self):
-        """Revision 2: nothing but F13-F22 and the num layer keys is bound."""
+        """Nothing but the board's ten collision-free tokens and num keys is bound."""
         c = mirror.load_config_file(mirror.LAYERS_JSON)
         bound = set(c["bindings"]) | set(c["layerKeys"])
-        expected = {"f%d" % n for n in range(13, 23)} | {
+        expected = SHIPPED_BINDING_TOKENS | {
             "u", "i", "o", "j", "k", "l", "m", "comma", "period", "n",
             "slash", "semicolon",
         }
@@ -80,23 +138,23 @@ class TestShippedConfigs(unittest.TestCase):
             self.assertNotIn(protected, c["bindings"])
             self.assertNotIn(protected, c["layerKeys"])
 
-    def test_shipped_f19_is_the_only_tap_only_binding(self):
+    def test_shipped_f21_is_the_only_tap_only_binding(self):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
         tap_only = [k for k, b in c["bindings"].items() if not b["hasHold"]]
-        self.assertEqual(["f19"], tap_only)
+        self.assertEqual(["f21"], tap_only)
 
     def test_shipped_taphold_pairs_are_present(self):
-        """Revision 1 + 2 pairing: every non-F19 key has both a tap and a hold."""
+        """Every binding except the F21 layer toggle has tap and hold actions."""
         c = mirror.load_config_file(mirror.LAYERS_JSON)
-        for key in ("f13", "f14", "f15", "f16", "f17", "f18", "f20", "f21", "f22"):
+        for key in SHIPPED_BINDING_TOKENS - {"f21"}:
             self.assertTrue(c["bindings"][key]["hasHold"], key + " must have a hold")
 
     def test_shipped_focus_app_targets(self):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
         expect = {
             "f14": ("chrome.exe", "OUTLOOK.EXE"),
-            "f16": ("SLDWORKS.exe", "explorer.exe"),
-            "f17": ("InDesign (Beta).exe", "Photoshop.exe"),
+            "f18": ("SLDWORKS.exe", "explorer.exe"),
+            "f19": ("claude.exe", "mstsc.exe"),
         }
         for key, (tap_exe, hold_exe) in expect.items():
             self.assertEqual("focusApp", c["bindings"][key]["tap"]["kind"])
@@ -123,12 +181,12 @@ class TestShippedConfigs(unittest.TestCase):
         """explorer.exe is also the desktop and taskbar; without a class filter
         the engine would always match and never open a new window."""
         c = mirror.load_config_file(mirror.LAYERS_JSON)
-        self.assertEqual("CabinetWClass", c["bindings"]["f16"]["hold"]["windowClass"])
+        self.assertEqual("CabinetWClass", c["bindings"]["f18"]["hold"]["windowClass"])
 
-    def test_shipped_f20_is_paste_then_copy(self):
+    def test_shipped_f22_is_paste_then_copy(self):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
-        self.assertEqual("^{v}", c["bindings"]["f20"]["tap"]["send"])
-        self.assertEqual("^{c}", c["bindings"]["f20"]["hold"]["send"])
+        self.assertEqual("^{v}", c["bindings"]["f22"]["tap"]["send"])
+        self.assertEqual("^{c}", c["bindings"]["f22"]["hold"]["send"])
 
     def test_shipped_f13_redo_is_app_aware(self):
         c = mirror.load_config_file(mirror.LAYERS_JSON)
@@ -180,8 +238,8 @@ class TestSchemaRejections(unittest.TestCase):
 
     def test_unknown_binding_key_rejected(self):
         cfg = base_cfg()
-        cfg["bindings"]["F13"]["doubleTap"] = {"send": "Ctrl+X"}
-        self.assertRejects(cfg, "unknown key 'doubleTap'")
+        cfg["bindings"]["F13"]["tripleHold"] = {"send": "Ctrl+X"}
+        self.assertRejects(cfg, "unknown key 'tripleHold'")
 
     def test_unknown_action_key_rejected(self):
         cfg = base_cfg()
@@ -486,6 +544,70 @@ class TestConfigDeepCopyIsolation(unittest.TestCase):
     def test_deepcopy_of_shipped_config_validates(self):
         cfg = mirror.parse_config_text(mirror.read_config_text(mirror.LAYERS_JSON))
         self.assertEqual([], mirror.validate_config(copy.deepcopy(cfg)))
+
+
+
+def enc_cfg(**dirs):
+    cfg = base_cfg()
+    cfg["encoder"] = dict({"devices": ["VID_0C45&PID_800A", "VID_05AC&PID_024F"]}, **dirs)
+    return cfg
+
+
+class TestEncoder(unittest.TestCase):
+    def test_shipped_encoder_is_stock_so_nothing_is_hooked(self):
+        c = mirror.load_config_file(mirror.LAYERS_JSON)
+        self.assertEqual({}, c["encoder"]["dirs"])
+        self.assertIn("VID_0C45&PID_800A", c["encoder"]["devices"])
+
+    def test_absent_encoder_hooks_nothing(self):
+        c = mirror.load_config_obj(base_cfg())
+        self.assertEqual({}, c["encoder"]["dirs"])
+
+    def test_stock_mapping_hooks_nothing(self):
+        c = mirror.load_config_obj(enc_cfg(
+            left={"send": "Volume_Down"}, right={"send": "volume_up"}, press={"send": "Volume_Mute"}))
+        self.assertEqual({}, c["encoder"]["dirs"])
+
+    def test_remapped_direction_is_hooked_on_its_source_key(self):
+        c = mirror.load_config_obj(enc_cfg(press={"send": "Media_Play_Pause"}, right={"send": "Ctrl+Y"}))
+        d = c["encoder"]["dirs"]
+        self.assertEqual({"press", "right"}, set(d))
+        self.assertEqual("Volume_Mute", d["press"]["hk"])
+        self.assertEqual("{Volume_Mute}", d["press"]["src"])
+        self.assertEqual("{Media_Play_Pause}", d["press"]["action"]["send"])
+        self.assertEqual("Volume_Up", d["right"]["hk"])
+
+    def test_example_hooks_turns_for_press_turn_actions(self):
+        # pressLeft/pressRight hook both turn directions; the button runs in press mode.
+        c = mirror.load_config_file(mirror.LAYERS_EXAMPLE_JSON)
+        self.assertEqual({"left", "right"}, set(c["encoder"]["dirs"]))
+
+    def test_modified_source_counts_as_a_remap(self):
+        c = mirror.load_config_obj(enc_cfg(right={"send": "Shift+Volume_Up"}))
+        self.assertEqual({"right"}, set(c["encoder"]["dirs"]))
+
+    def test_byapp_and_layer_actions_allowed(self):
+        cfg = enc_cfg(left={"byApp": {"solidworks": {"send": "Ctrl+Z"}, "default": {"send": "Volume_Down"}}},
+                      press={"layerToggle": "num"})
+        self.assertEqual([], mirror.validate_config(cfg))
+
+    def test_missing_devices_rejected(self):
+        cfg = enc_cfg()
+        del cfg["encoder"]["devices"]
+        self.assertTrue(any("encoder.devices" in e for e in mirror.validate_config(cfg)))
+
+    def test_bad_device_id_rejected(self):
+        cfg = enc_cfg()
+        cfg["encoder"]["devices"] = ["0C45:800A"]
+        self.assertTrue(any("encoder.devices" in e for e in mirror.validate_config(cfg)))
+
+    def test_unknown_encoder_key_rejected(self):
+        cfg = enc_cfg(spin={"send": "A"})
+        self.assertTrue(any("unknown key 'spin'" in e for e in mirror.validate_config(cfg)))
+
+    def test_bad_encoder_action_rejected(self):
+        cfg = enc_cfg(left={"send": "Ctrl+Alt+Shift+V"})
+        self.assertTrue(any(e.startswith("encoder.left.send") for e in mirror.validate_config(cfg)))
 
 
 if __name__ == "__main__":
